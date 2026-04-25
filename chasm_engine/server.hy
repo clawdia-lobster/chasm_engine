@@ -151,13 +151,20 @@ See documentation:
   (print f"Starting server at {(.isoformat (datetime.today))} for {config-file}: {(config "world")}")
   (log.info f"Starting server for {config-file}: {(config "world")}")
   (let [tasks (lfor n (range N_CONCURRENT_CLIENTS) (asyncio.create-task (server-loop n)))
-        bg-task (asyncio.create-task (background-loop))]
+        bg-task (asyncio.create-task (background-loop))
+        all-tasks [+ [bg-task] tasks]]
     (try
-      ; TODO: clean exit
-      ;(setv [done pending] (await (asyncio.wait [bg-task #* tasks])))
-      (await (asyncio.wait [bg-task #* tasks]))
-      #_(except [KeyboardInterrupt]
-          (print "Interrupted, quitting.")
-          (log.info f"Interrupted, quitting")
-          (for [t pending]
-             (t.cancel))))))
+      (await (asyncio.wait all-tasks))
+      (except [KeyboardInterrupt]
+        (print "\nInterrupted, shutting down...")
+        (log.info "Server shutdown initiated")
+        ;; Cancel all tasks
+        (for [t all-tasks]
+          (t.cancel))
+        ;; Wait for cancellation
+        (await (asyncio.gather #* all-tasks :return-exceptions True))
+        ;; Close sockets
+        (.close frontend)
+        (.term context)
+        (print "Server stopped cleanly.")
+        (log.info "Server stopped cleanly")))))
