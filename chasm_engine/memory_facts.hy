@@ -122,7 +122,7 @@ Replaces ChromaDB with structured facts + full-text search.
                 :source-type "character"
                 :location (:location f None)
                 :fact-type "hearsay"
-                :confidence (* (:confidence f 1.0) 0.7)))
+                :confidence (* (:confidence f 1.0) 0.7))
       (setv shared (+ shared 1)))
     (log.debug f"share-knowledge: {from-name} -> {to-name}: {shared} facts")
     shared))

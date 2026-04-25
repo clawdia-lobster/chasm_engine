@@ -13,7 +13,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine [log])
 
 (import chasm-engine.lib *)
-(import chasm-engine [place item character plot quest])
+(import chasm-engine [place item character plot quest world_author])
 (import chasm-engine.types [Coords])
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
@@ -251,6 +251,8 @@ The engine logic is expected to handle many players.
         (await (plot.extract-point recent-messages player))
         ; check quest progress
         (await (quest.try-advance player-name recent-messages))
+        ; world author: potentially add new content
+        (await (world_author.author-cycle (world_author.summarise-narrative recent-messages)))
         ; all players get developed
         (for [c characters-here]
           (await (character.develop-json c recent-messages)))
