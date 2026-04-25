@@ -134,20 +134,28 @@ Chat management functions.
 ;; TODO hyjinx llm async
 ;; TODO streaming -- but how to stream to client?
 
-(defn :async _openai [params messages]
+(defn :async _openai [params messages [stream False]]
   "Openai-compatible API calls: https://platform.openai.com/docs/api-reference"
   (let [api-key (.pop params "api_key" None)
         base-url (.pop params "api_base" None)
         client (openai.AsyncOpenAI :api-key api-key
                                    :base-url base-url)
         ;; Disable thinking/reasoning mode for reasoning models like Qwen3
-        extra-body {"chat_template_kwargs" {"enable_thinking" False}}
-        response (await
-                   (client.chat.completions.create
-                     :messages (standard-roles messages)
-                     :extra-body extra-body
-                     #** params))]
-    (. (. (first response.choices) message) content)))
+        extra-body {"chat_template_kwargs" {"enable_thinking" False}}]
+    (if stream
+        ;; Return async generator for streaming
+        (client.chat.completions.create
+          :messages (standard-roles messages)
+          :stream True
+          :extra-body extra-body
+          #** params)
+        ;; Non-streaming: return full content
+        (let [response (await
+                         (client.chat.completions.create
+                           :messages (standard-roles messages)
+                           :extra-body extra-body
+                           #** params))]
+          (. (. (first response.choices) message) content)))))
 
 (defn :async _anthropic [params messages]
   "Use the Anthropic API.
@@ -197,3 +205,31 @@ Chat management functions.
   (-> (respond messages #** kwargs)
       (await)
       (assistant)))
+
+(defn :async respond-stream [messages [provider "backend"] #** kwargs]
+  "Stream response to a list of messages.
+  Yields chunks of content as they arrive."
+  (let [conf (or (config "providers" provider) {})
+        defaults {"api_key" "sk-dummy"
+                  "max_tokens" (config "max_tokens")
+                  "api_scheme" "openai"
+                  "model" None}
+        params (| defaults conf (or kwargs {}))
+        api-scheme (.pop params "api_scheme")]
+    (try
+      (match api-scheme
+             "openai" (_openai params messages :stream True)
+             _        (_openai params messages :stream True))
+      (except [err [Exception]]
+        (log.error f"Chat API streaming exception ({api-scheme})" :exception err)
+        (raise (ChatError (.join " " [api-scheme (str err)])))))))
+
+(defn :async collect-stream [stream]
+  "Collect streaming response into full content."
+  (let [content []]
+    (async-for [chunk stream]
+      (when (and chunk (first chunk.choices))
+        (let [delta (. (first chunk.choices) delta)]
+          (when delta.content
+            (.append content delta.content)))))
+    (.join "" content)))
