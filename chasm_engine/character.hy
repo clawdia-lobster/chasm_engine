@@ -286,3 +286,64 @@ Functions that deal with characters.
                                  (list))]
     (log.info f"{filtered-char-list}")
     (cut filtered-char-list 3)))
+
+
+;; * NPC Backstory Generation
+;; -----------------------------------------------------------------------------
+
+(defn :async generate-backstory [char-name existing-chars place-name]
+  "Generate a rich backstory for an NPC with connections to existing characters."
+  (let [existing-names (.join ", " (lfor c existing-chars c.name))
+        prompt (+ "You are a character designer for a text adventure game.\n"
+                  "Generate a rich backstory for a new NPC.\n\n"
+                  f"NPC name: {char-name}\n"
+                  f"Location: {place-name}\n"
+                  f"Existing characters nearby: {existing-names}\n\n"
+                  "Create a backstory that:\n"
+                  "- Explains why they are here\n"
+                  "- Connects them to at least one existing character (if any)\n"
+                  "- Gives them a secret or hidden motivation\n"
+                  "- Fits the world theme\n\n"
+                  "Reply with JSON only:\n"
+                  "{\"backstory\": \"...\", \"secret\": \"...\", \"connections\": [{\"name\": \"...\", \"relationship\": \"...\"}], \"hidden_objective\": \"...\"}")]
+    (try
+      (let [response (await (respond [(system prompt)] :provider "backend"))
+            result (extract-json-unwrap response)]
+        (when result
+          (log.info f"Generated backstory for {char-name}")
+          result))
+      (except [Exception]
+        None))))
+
+(defn :async enhance-with-backstory [char existing-chars]
+  "Enhance a character with a generated backstory."
+  (let [place (get-place char.coords)
+        place-name (if place place.name "somewhere")
+        backstory (await (generate-backstory char.name existing-chars place-name))]
+    (when backstory
+      ;; Update character with backstory info
+      (let [enhanced-backstory (+ (or char.backstory "") " " (or (:backstory backstory) ""))
+            enhanced-objective (or (:hidden_objective backstory) char.objective)]
+        (update-character char
+                          :backstory enhanced-backstory
+                          :objective enhanced-objective)
+        ;; Store connections as facts
+        (when (:connections backstory)
+          (for [conn (:connections backstory)]
+            (let [other-name (:name conn)
+                  relationship (:relationship conn)]
+              (when (and other-name relationship)
+                (import chasm_engine.facts [add-fact])
+                (add-fact char.name "knows" other-name
+                          :location place-name
+                          :classification "significant")
+                (add-fact char.name "relationship" relationship
+                          :location place-name
+                          :classification "significant")))))
+        ;; Store secret as a fact
+        (when (:secret backstory)
+          (import chasm_engine.facts [add-fact])
+          (add-fact char.name "has-secret" (:secret backstory)
+                    :location place-name
+                    :classification "major"))
+        (get-character char.name)))))
