@@ -17,7 +17,7 @@ Design: docs/QUEST_SYSTEM.md
 (import pathlib [Path])
 
 (import chasm_engine [log])
-(import chasm_engine.lib [config extract-json format-msgs])
+(import chasm_engine.lib [config extract-json-unwrap format-msgs])
 (import chasm_engine.state [path world get-table character-key])
 (import chasm_engine.chat [respond truncate system user])
 

@@ -17,7 +17,7 @@ Design: docs/WORLD_AUTHOR.md (to be created)
 (import random [choice random])
 
 (import chasm_engine [log])
-(import chasm_engine.lib [config extract-json format-msgs jn])
+(import chasm_engine.lib [config extract-json-unwrap format-msgs jn])
 (import chasm_engine.state [world world-name path get-place len-places
                             get-character get-characters
                             random-coords])
@@ -142,7 +142,7 @@ Reply in JSON:
         response (await (respond [(system "You are the World Author.")
                                   (user prompt)]
                                  :provider "narrator"))
-        decision (extract-json response)]
+        decision (extract-json-unwrap response)]
     (let [dec (or (.get decision "decision") "NOTHING")
           reason (or (.get decision "reason") "")]
       (log.info f"World Author decision: {dec} - {reason}"))
@@ -168,7 +168,7 @@ Reply in JSON:
         response (await (respond [(system "You create vivid game locations.")
                                   (user prompt)]
                                  :provider "narrator"))
-        region-data (extract-json response)]
+        region-data (extract-json-unwrap response)]
     (when region-data
       (log.info f"Generated region: {(or (.get region-data "name") "unknown")} at {coords}")
       region-data)))
@@ -184,7 +184,7 @@ Reply in JSON:
         response (await (respond [(system "You design compelling quests.")
                                   (user prompt)]
                                  :provider "narrator"))
-        quest-data (extract-json response)]
+        quest-data (extract-json-unwrap response)]
     (when quest-data
       (log.info f"Generated quest: {(or (.get quest-data "name") "unknown")}")
       quest-data)))
@@ -202,7 +202,7 @@ Reply in JSON:
         response (await (respond [(system "You create memorable characters.")
                                   (user prompt)]
                                  :provider "narrator"))
-        npc-data (extract-json response)]
+        npc-data (extract-json-unwrap response)]
     (when npc-data
       (log.info f"Generated NPC: {(or (.get npc-data "name") "unknown")}")
       npc-data)))

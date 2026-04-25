@@ -13,7 +13,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine [log])
 
 (import chasm-engine.lib *)
-(import chasm-engine [place item character plot quest world_author])
+(import chasm-engine [place item character plot quest world_author memory_facts])
 (import chasm-engine.types [Coords])
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
@@ -268,9 +268,10 @@ The engine logic is expected to handle many players.
   "Set characters not accessed in last hour to NPC."
   ; TODO: maybe this is server logic, not engine?
   (for [a (get-accounts)]
-    (let [dt (- (time) (:last-accessed a Inf))]
-      (when (> (abs dt) 3600)
-        (update-character (get-character (:name a)) :npc True)))))
+    (let [dt (- (time) (:last-accessed a Inf))
+          char (get-character (:name a))]
+      (when (and char (> (abs dt) 3600))
+        (update-character char :npc True)))))
 
 ;; Parser functions -> bool
 ;; -----------------------------------------------------------------------------
@@ -401,17 +402,19 @@ The engine logic is expected to handle many players.
   "Returns (as a string) top memories for all characters at the player's location."
   (let [characters-here (character.get-at player.coords)
         character-names-here (lfor c characters-here c.name)
-        plot-points (jn (plot.recall-points (plot.news)))]
+        plot-points (jn (plot.recall-points (plot.news)))
+        place-name (place.name player.coords)]
     (jnn
       (lfor c (character.get-at player.coords)
         (let [s (jn [c.objective
                      plot-points
                      #* character-names-here
                      (plot.news)])
-              mem (bullet (character.recall c s :n n))]
-          (if mem
-              f"{c.name} recalls the memories:\n{mem}."
-              ""))))))
+              mem (bullet (character.recall c s :n n))
+              ; Include knowledge from facts system
+              knowledge (memory-facts.knowledge-about c.name place-name :n 3)]
+          (jnn [(if mem f"{c.name} recalls the memories:\n{mem}." "")
+                (if knowledge knowledge "")]))))))
   
 (defn :async hint [messages player line]
   "Offer a hint to aid the player's progress, in light of a question."

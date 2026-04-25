@@ -5,7 +5,7 @@ Functions that manage place.
 (require hyrule [-> ->>])
 (require hyrule [unless])
 
-(import hyjinx [extract-json])
+(import chasm_engine.lib [extract-json-unwrap])
 
 (import tenacity [retry stop-after-attempt wait-random-exponential])
 
@@ -83,7 +83,7 @@ Functions that manage place.
 
 (defn :async gen-json [nearby-places]
   "Make up a place from its neighbours."
-  (let [details (extract-json
+  (let [details (extract-json-unwrap
                   (await (place-json
                            :context f"The story's setting is: {world}\nNearby places: {nearby-places}"
                            :seed (choice alphanumeric)
@@ -110,7 +110,7 @@ Functions that manage place.
 
 (defn :async gen-rooms [place-dict]
   "Make up some rooms for a place."
-  (extract-json
+  (extract-json-unwrap
     (await
       (place-rooms
         :world world

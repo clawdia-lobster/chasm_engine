@@ -1,0 +1,5 @@
+# Intent classification templates
+
+classify = '''
+{prompt}
+'''

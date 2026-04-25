@@ -37,9 +37,24 @@
 (import jaro)
 
 (import tomllib)
+(import json-repair [repair-json])
 
 
 (defclass ChasmEngineError [RuntimeError])
+
+
+;; JSON extraction with repair
+;; -----------------------------------------------------------------------------
+
+(defn extract-json-unwrap [text]
+  "Extract and repair JSON from text. Returns dict or None."
+  (try
+    (let [result (repair-json text)]
+      (if (and result (isinstance result dict))
+          result
+          None))
+    (except [Exception]
+      None)))
 
 ;; config function
 ;; -----------------------------------------------------------------------------
@@ -86,7 +101,7 @@
 ;; -----------------------------------------------------------------------------
 
 (defn mksubdir [d]
-  (.mkdir (Path (.join "/" [path d]))
+  (.mkdir (Path d)
           :parents True
           :exist-ok True))  
 

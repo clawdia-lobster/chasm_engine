@@ -105,7 +105,7 @@ Functions that deal with characters.
         name-dict (if name {"name" name} {})
         place (get-place coords)
         place-name (if place place.name "a typical place in this world")
-        details (extract-json
+        details (extract-json-unwrap
                   (await (character-json
                            :name name-str
                            :place place-name
@@ -210,7 +210,7 @@ Functions that deal with characters.
 (defn :async develop-json [character messages]
   "Develop a character's attributes based on the dialogue."
   (let [nearby-places (.join ", " (await (place.nearby character.coords :name True)))
-        details (extract-json
+        details (extract-json-unwrap
                   (await
                     (character-develop-json
                       messages

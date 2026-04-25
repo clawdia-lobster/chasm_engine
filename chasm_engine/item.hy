@@ -4,7 +4,7 @@ Functions that deal with items.
 
 (require hyrule.argmove [-> ->>])
 
-(import hyjinx [extract-json])
+(import chasm_engine.lib [extract-json-unwrap])
 
 (import chasm_engine [log])
 
@@ -31,7 +31,7 @@ Functions that deal with items.
                         :world world
                         :place-name place.name
                         :seed seed))
-        kvs (extract-json result)]
+        kvs (extract-json-unwrap result)]
     (when kvs
       ; sometimes the model likes to make up an "item" field instead of "name".
       (let [details (dfor [k v] (.items kvs)

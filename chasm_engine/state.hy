@@ -96,8 +96,9 @@ But you're probably using autocommit anyway."
 
 (defn update-character [char #** kwargs]
   "Update a character's details. You cannot change the name."
-  (log.debug f"Updating character {char.name}, {kwargs}.")
-  (set-character (Character #** (| (._asdict char) kwargs))))
+  (when char
+    (log.debug f"Updating character {char.name}, {kwargs}.")
+    (set-character (Character #** (| (._asdict char) kwargs)))))
 
 (defn delete-character [char-name]
   "Completely remove a character."
