@@ -297,6 +297,45 @@ Has the condition been met? Reply with exactly one word: YES or NO.")
           (.join "\n" lines)))))
 
 
+;; * Quest Chain Generation
+;; -----------------------------------------------------------------------------
+
+(defn :async generate-followup-quest [completed-quest narrative]
+  "Generate a follow-up quest based on a completed quest and recent narrative."
+  (let [prompt (+ "You are a quest designer for a text adventure game.\n"
+                  "Generate a follow-up quest based on the completed quest and recent narrative.\n\n"
+                  f"Completed quest: {(:name completed-quest)}\n"
+                  f"Completed quest description: {(:description completed-quest)}\n\n"
+                  f"Recent narrative:\n{narrative}\n\n"
+                  "Generate a new quest that:\n"
+                  "- Follows logically from the completed quest\n"
+                  "- References events or characters from the narrative\n"
+                  "- Has a clear goal and stages\n"
+                  "- Is interesting and engaging\n\n"
+                  "Reply with JSON only:\n"
+                  "{\"id\": \"quest-id\", \"name\": \"Quest Name\", \"description\": \"...\", \"stages\": [{\"condition\": \"...\", \"description\": \"...\"}], \"rewards\": {\"score\": 10}}")]
+    (try
+      (let [response (await (respond [(system prompt)] :provider "backend"))
+            result (extract-json-unwrap response)]
+        (when (and result (:id result) (:name result))
+          (log.info f"Generated follow-up quest: {(:name result)}")
+          result))
+      (except [Exception]
+        None))))
+
+(defn :async check-and-generate-followups [char-name narrative]
+  "Check for recently completed quests and generate follow-ups."
+  (let [completed (completed-quest-ids char-name)]
+    (for [qid completed]
+      (let [quest (get-quest qid)]
+        (when quest
+          (let [followup (await (generate-followup-quest quest narrative))]
+            (when followup
+              ;; Save the generated quest
+              (setv (get quest-defs (:id followup)) followup)
+              (log.info f"Saved follow-up quest: {(:id followup)}"))))))))
+
+
 ;; * Offering Quests (NPC integration)
 ;; -----------------------------------------------------------------------------
 
