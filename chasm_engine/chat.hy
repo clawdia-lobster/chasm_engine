@@ -20,14 +20,14 @@ Chat management functions.
 
 (defclass ChatError [RuntimeError])
 
-(setv APIErrors [openai.APIConnectionError
+(setv APIErrors (tuple [openai.APIConnectionError
                  openai.InternalServerError
                  openai.APIStatusError
                  openai.APITimeoutError
                  anthropic.APIConnectionError
                  anthropic.InternalServerError
                  anthropic.APIStatusError
-                 anthropic.APITimeoutError])
+                 anthropic.APITimeoutError]))
 
 ;; Message functions
 ;; -----------------------------------------------------------------------------
@@ -136,11 +136,16 @@ Chat management functions.
 
 (defn :async _openai [params messages]
   "Openai-compatible API calls: https://platform.openai.com/docs/api-reference"
-  (let [client (openai.AsyncOpenAI :api-key (.pop params "api_key")
-                                   :base-url (.pop params "api_base"))
+  (let [api-key (.pop params "api_key" None)
+        base-url (.pop params "api_base" None)
+        client (openai.AsyncOpenAI :api-key api-key
+                                   :base-url base-url)
+        ;; Disable thinking/reasoning mode for reasoning models like Qwen3
+        extra-body {"chat_template_kwargs" {"enable_thinking" False}}
         response (await
                    (client.chat.completions.create
                      :messages (standard-roles messages)
+                     :extra-body extra-body
                      #** params))]
     (. (. (first response.choices) message) content)))
 
@@ -170,12 +175,12 @@ Chat management functions.
   "Reply to a list of messages and return just content.
   The messages should already have the standard roles.
   Use `providers.default` unless the `provider` arg is specified."
-  (let [conf (config "providers" provider)
-        defaults {"api_key" "n/a"
+  (let [conf (or (config "providers" provider) {})
+        defaults {"api_key" "sk-dummy"
                   "max_tokens" (config "max_tokens")
                   "api_scheme" "openai"
                   "model" None}
-        params (| defaults conf kwargs)
+        params (| defaults conf (or kwargs {}))
         api-scheme (.pop params "api_scheme")]
     (try
       (match api-scheme

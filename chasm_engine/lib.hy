@@ -17,7 +17,7 @@
 
 (import datetime [datetime timezone])
 
-(import functools [partial cache lru-cache])
+(import functools [partial cache lru-cache reduce])
 (import async-lru [alru-cache])
 
 (import itertools *)
@@ -55,15 +55,20 @@
 (setv [args _] (.parse-known-args args-parser))
 (setv config-file args.config)
 
-(defn config [#* keys [file config-file]]
+(defn config [#* keys [file None]]
   "Get values in a toml file like a hashmap, but default to None."
+  (setv file (or file config-file))
   (unless (os.path.isfile file)
     (raise (FileNotFoundError file)))
   (try
-    (-> file
-        (slurp)
-        (tomllib.loads)
-        (get #* keys))
+    (let [data (-> file
+                   (slurp)
+                   (tomllib.loads))
+          keys-list (list keys)]
+      (if (not keys-list)
+          data
+          (let [result (reduce (fn [acc k] (when acc (.get acc k None))) keys-list data)]
+            result)))
     (except [KeyError]
       None)))
   

@@ -18,7 +18,7 @@ Functions that deal with characters.
 (import chasm_engine.types [Coords Character Item at?
                             mutable-character-attributes
                             initial-character-attributes])
-(import chasm_engine [place memory])
+(import chasm_engine [place memory_facts])
 
 (import chasm_engine.state [world
                             get-place
@@ -250,7 +250,7 @@ Functions that deal with characters.
                (not (in "significant or poignant thing worth remembering from this dialogue" new-memory))
                (not (in "[forgettable]" new-memory))
                (not (in "[classification]" new-memory)))
-      (memory.add (character-key character.name)
+      (memory_facts.add (character-key character.name)
                   {"character" character.name
                    "coords" (str character.coords)
                    "place" (place.name character.coords)
@@ -261,7 +261,7 @@ Functions that deal with characters.
 (defn recall [character text [n 6] [class "significant"]]
   "Recall memories of a character. Pass `class=None` for all memories."
   (first
-    (:documents (memory.query (character-key character.name)
+    (:documents (memory_facts.query (character-key character.name)
                               :text text
                               :n n
                               :where (when class {"classification" class})))))

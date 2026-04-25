@@ -19,7 +19,7 @@ Develop the plot / world events
 
 (import chasm_engine [log])
 
-(import chasm_engine [place character memory])
+(import chasm_engine [place character memory_facts])
 (import chasm_engine.state [world])
 (import chasm_engine.chat [truncate respond
                            system user
@@ -39,13 +39,13 @@ Develop the plot / world events
 
 (defn recent [[n 5] [where None]]
   "Return `n` recent memories filtered by `where` (e.g. `{\"classification\" \"major\"}"
-  (:documents (memory.recent "narrator" :n n :where where)))
+  (:documents (memory_facts.recent "narrator" :n n :where where)))
 
 (defn recall-points [text [n 6] [class "major"]]
   "Recall the important plot points relating to `text`
   (the player, story thread, characters present, etc.)."
   (first
-    (:documents (memory.query "narrator"
+    (:documents (memory_facts.query "narrator"
                               :text text
                               :n n
                               :where (when class {"classification" class})))))
@@ -71,7 +71,7 @@ Develop the plot / world events
                   "classification" (.lower (first (classification.groups)))}
             points (point.groups)]
         (for [pt points]
-          (memory.add "narrator"
+          (memory_facts.add "narrator"
                       :metadata meta
                       :text f"{pt}"))))))
 
