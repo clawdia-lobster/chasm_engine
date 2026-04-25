@@ -13,7 +13,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine [log])
 
 (import chasm-engine.lib *)
-(import chasm-engine [place item character plot])
+(import chasm-engine [place item character plot quest])
 (import chasm-engine.types [Coords])
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
@@ -110,6 +110,37 @@ The engine logic is expected to handle many players.
   (slurp (or (+ (os.path.dirname __file__) "/help.md")
              "chasm/help.md")))
 
+(defn quest-status [player-name]
+  "Return a formatted string of quest status for a player."
+  (let [active    (quest.active-quests player-name)
+        done-ids  (quest.completed-quest-ids player-name)
+        available (quest.available-for player-name)
+        lines     []]
+    (when active
+      (.append lines "Active quests:")
+      (for [p active]
+        (let [q      (quest.get-quest (:quest_id p))
+              idx    (:stage_index p 0)
+              stages (if q (:stages q []) [])
+              stage  (when (and q (< idx (len stages))) (get stages idx))]
+          (when q
+            (.append lines (+ "  " (:name q)))
+            (.append lines (if stage
+                               (+ "    -> " (:description stage ""))
+                               "    -> Complete!"))))))
+    (when done-ids
+      (.append lines "Completed:")
+      (for [qid done-ids]
+        (.append lines (+ "  [x] " qid))))
+    (when available
+      (.append lines "Available:")
+      (for [q available]
+        (.append lines (+ "  [?] " (:name q "?")))))
+    (if lines
+        (.join "
+" lines)
+        "You have no quests. Explore the world and speak to characters.")))
+
 (defn online [[long False] [seconds 600]]
   "List of player-characters online since (600) seconds ago."
   (let [chars-online (lfor a (get-accounts) :if (< (- (time) (float (:last-verified a))) seconds) (:name a))]
@@ -142,6 +173,7 @@ The engine logic is expected to handle many players.
                    (.startswith line "/map") (info (await (print-map player.coords)))
                    (.startswith line "/exits") (msg (await (print-map player.coords)))
                    (.startswith line "/online") (info (online :long True))
+                   (.startswith line "/quests") (info (quest-status player.name))
                    ;(.startswith line "/characters") (info (or (character.describe-at player.coords :exclude player.name) "Nobody interesting here but you.")) ; for debugging
                    ;(.startswith line "/items") (info (item.describe-at player.coords)) ; for debugging
                    ;(.startswith line "/what-if") (info (await (narrate (append (user (last (.partition line))) messages) player))) ; for debugging
@@ -173,6 +205,7 @@ The engine logic is expected to handle many players.
 
 (defn :async init []
   "When first starting the engine, create a few places to go."
+  (quest.init)
   (for [x (range -4 5)
         y (range -4 5)]
     (await (place.extend-map (Coords x y)))))
@@ -216,6 +249,8 @@ The engine logic is expected to handle many players.
       (when (and player-name player messages)
         ; new plot point, record in vdb, db and recent events
         (await (plot.extract-point recent-messages player))
+        ; check quest progress
+        (await (quest.try-advance player-name recent-messages))
         ; all players get developed
         (for [c characters-here]
           (await (character.develop-json c recent-messages)))
@@ -348,15 +383,17 @@ The engine logic is expected to handle many players.
   
 (defn :async player-context [player]
   "Fill in player context templates with current information."
-  (plot.context "player"
-    :player player.name
-    :items-here (item.describe-at player.coords)
-    :location (place.name player.coords)
-    :locations (await (place.nearby-str player.coords))
-    :rooms (place.rooms player.coords)
-    :character-descriptions-here (character.describe-at player.coords :long True)
-    :objective player.objective
-    :inventory (item.describe-inventory player)))
+  (let [quest-ctx (quest.quest-context player.name)]
+    (plot.context "player"
+      :player player.name
+      :items-here (item.describe-at player.coords)
+      :location (place.name player.coords)
+      :locations (await (place.nearby-str player.coords))
+      :rooms (place.rooms player.coords)
+      :character-descriptions-here (character.describe-at player.coords :long True)
+      :objective player.objective
+      :inventory (item.describe-inventory player)
+      :quests (or quest-ctx ""))))
   
 (defn memories [player [n 6]]
   "Returns (as a string) top memories for all characters at the player's location."

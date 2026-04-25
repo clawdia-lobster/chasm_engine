@@ -26,3 +26,4 @@ The usual readline shortcuts should be available (up-arrow for previous commands
 - **/hint how do I escape?**     Help if you're stuck
 - **/history**                   Print your whole narrative
 - **/map**                       List the exits and their directions
+- **/quests**                    Show active, completed, and available quests
