@@ -100,3 +100,41 @@ Replaces ChromaDB with structured facts + full-text search.
 (defn collection [name]
   "Compatibility stub - returns None."
   None)
+
+
+;; * NPC Knowledge Sharing
+;; -----------------------------------------------------------------------------
+
+(defn share-knowledge [from-char to-char [n 3]]
+  "Copy the most recent significant memories from one character to another.
+  Called when two characters interact. Returns count of facts shared."
+  (let [from-name (if (isinstance from-char str) from-char from-char.name)
+        to-name   (if (isinstance to-char str) to-char to-char.name)
+        from-facts (query-facts :source from-name
+                                :fact-type "significant"
+                                :limit n)
+        shared 0]
+    (for [f from-facts]
+      (add-fact (:subject f)
+                (:predicate f)
+                (:object f)
+                :source to-name
+                :source-type "character"
+                :location (:location f None)
+                :fact-type "hearsay"
+                :confidence (* (:confidence f 1.0) 0.7)))
+      (setv shared (+ shared 1)))
+    (log.debug f"share-knowledge: {from-name} -> {to-name}: {shared} facts")
+    shared))
+
+
+(defn knowledge-about [char-name subject [n 5]]
+  "Return a formatted string of what a character knows about a subject.
+  Suitable for inclusion in narrator context."
+  (let [results (search-facts subject :n n :source char-name)
+        lines   []]
+    (for [f results]
+      (.append lines f"  {(:subject f)} {(:predicate f)} {(:object f)}"))
+    (if lines
+        (+ char-name " knows:\n" (.join "\n" lines))
+        "")))

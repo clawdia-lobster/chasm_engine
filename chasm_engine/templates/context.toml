@@ -30,6 +30,8 @@ These places are accessible from the player's present location:
 
 These rooms are available at the player's present location:
 {rooms}
+
+{quests}
 '''
 
 location = '''{items_here}
