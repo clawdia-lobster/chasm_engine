@@ -24,7 +24,7 @@ See documentation:
 
 (import chasm_engine [log])
 
-(import chasm_engine [engine])
+(import chasm_engine [engine status])
 (import chasm_engine.lib [config-file config hash-id inc])
 (import chasm_engine.state [get-account set-account update-account])
 (import chasm_engine.wire [wrap unwrap zerror])
@@ -103,6 +103,7 @@ See documentation:
 ;; That is, all output is either 'ACK' or streamed output
 (defn :async handle-frames [frames]
   "Unwrap, verify an incoming message."
+  (status.increment-messages!)
   (let [[q ident z zmsg] frames
         msg (unwrap zmsg) ; no messages will raise zmq.Again
         player-name (:player msg {})
@@ -131,11 +132,11 @@ See documentation:
 
 (defn :async background-loop []
   "Background service tasks."
-  ;; TODO set come sort of server status here
+  (status.init-status)
   (print "Initial map generation...")
   (await (engine.init))
   (print "Ready for players.")
-  ;; TODO set server status to ready
+  (status.set-ready!)
   (while True
     (await (asyncio.sleep BACKGROUND_TICK))
     (try
@@ -144,8 +145,10 @@ See documentation:
       (await (engine.spawn-characters))
       (await (engine.spawn-items))
       (engine.set-offline-players)
+      (status.update-last-activity!)
       (except [err [Exception]]
-        (log.error "background-loop exception" :exception err)))))
+        (log.error "background-loop exception" :exception err)
+        (status.increment-errors!)))))
 
 (defn :async serve []
   (print f"Starting server at {(.isoformat (datetime.today))} for {config-file}: {(config "world")}")

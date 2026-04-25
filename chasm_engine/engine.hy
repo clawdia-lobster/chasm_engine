@@ -80,7 +80,8 @@ The engine logic is expected to handle many players.
 
 (defn status [#* args #** kwargs] ; -> response
   "Server status."
-  {"result" {"up" True}}) ; TODO: show busy (and with what), or ready for input
+  (import chasm_engine.status [get-status])
+  {"result" {"status" (get-status)}})
 
 (defn motd [#* args #** kwargs] ; -> response
   "Server MOTD."
