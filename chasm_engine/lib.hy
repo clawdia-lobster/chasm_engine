@@ -50,9 +50,10 @@
   "Extract and repair JSON from text. Returns dict or None."
   (try
     (let [result (repair-json text)]
-      (if (and result (isinstance result dict))
-          result
-          None))
+      (cond
+        (isinstance result dict) result
+        (isinstance result str) (json.loads result)
+        :else None))
     (except [Exception]
       None)))
 
