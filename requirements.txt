@@ -4,7 +4,6 @@ anthropic
 sqlitedict
 jaro-winkler
 tiktoken
-sentence-transformers
 tenacity
 ecdsa
 async-lru
