@@ -1,13 +1,13 @@
-"
+"""
 LLM-based intent classification for natural language commands.
 Replaces regex-based parsing with flexible LLM interpretation.
-"
+"""
 
 (require hyrule.argmove [-> ->>])
 
 (import chasm_engine [log])
 (import chasm_engine.lib [config jn extract-json-unwrap])
-(import chasm_engine.chat [respond user])
+(import chasm_engine.chat [respond user system])
 (require chasm_engine.instructions [def-fill-template])
 
 ;; Intent types
@@ -26,39 +26,27 @@ Replaces regex-based parsing with flexible LLM interpretation.
 ;; SAY: say something (default for dialogue)
 
 ;; Define the intent classification function using the template system
-(def-fill-template intent classify)
+;; This creates intent-classify function that uses the 'classify' template
+;; with 'system' as the system prompt
+(def-fill-template intent classify system)
 
 (defn :async classify-intent [line player context]
   "Classify player input into an intent.
   Returns dict with 'intent' and optional 'target', 'recipient', 'item', etc."
-  (let [prompt (+ "You are an intent classifier for a text adventure game.\n"
-                  "Classify the player's action into one of these intents:\n\n"
-                  "- MOVE: going somewhere (direction or place name)\n"
-                  "- TAKE: picking up an item\n"
-                  "- DROP: dropping an item\n"
-                  "- GIVE: giving an item to someone\n"
-                  "- TALK: talking to a character\n"
-                  "- LOOK: examining something\n"
-                  "- USE: using an item\n"
-                  "- ATTACK: attacking something\n"
-                  "- HELP: asking for help or a hint\n"
-                  "- QUESTS: checking quest status\n"
-                  "- QUIT: exiting the game\n"
-                  "- SAY: saying something (default for dialogue)\n\n"
-                  f"Player: {player.name}\n"
-                  f"Location: {(:location context)}\n"
-                  f"Items here: {(:items-here context)}\n"
-                  f"Characters here: {(:characters-here context)}\n"
-                  f"Nearby: {(:nearby context)}\n\n"
-                  f"Player input: {line}\n\n"
-                  "Reply with JSON only:\n"
-                  "{\"intent\": \"INTENT_TYPE\", \"target\": \"optional target\", \"item\": \"optional item\", \"recipient\": \"optional recipient\", \"direction\": \"optional direction\"}")]
-    (try
-      (let [response (await (intent-classify [] :prompt prompt :provider "backend"))
-            result (extract-json-unwrap response)]
-        (or result {"intent" "SAY" "content" line}))
-      (except [Exception]
-        {"intent" "SAY" "content" line}))))
+  (try
+    (let [response (await (intent-classify
+                            []
+                            :player player.name
+                            :location (:location context)
+                            :items (:items-here context)
+                            :characters (:characters-here context)
+                            :nearby (:nearby context)
+                            :input line
+                            :provider "backend"))
+          result (extract-json-unwrap response)]
+      (or result {"intent" "SAY" "content" line}))
+    (except [Exception]
+      {"intent" "SAY" "content" line})))
 
 (defn :async parse-command [line player context]
   "Parse a natural language command into structured action.
@@ -80,8 +68,8 @@ Replaces regex-based parsing with flexible LLM interpretation.
       "LOOK" {"action" "look"
               "target" (:target classification)}
       "USE" {"action" "use"
-              "item" (:item classification)
-              "target" (:target classification)}
+             "item" (:item classification)
+             "target" (:target classification)}
       "ATTACK" {"action" "attack"
                 "target" (:target classification)}
       "HELP" {"action" "help"}

@@ -1,5 +1,32 @@
 # Intent classification templates
 
-classify = '''
-{prompt}
-'''
+# System prompt for intent classification
+system = """You are an intent classifier for a text adventure game.
+Classify the player's action into one of these intents:
+
+- MOVE: going somewhere (direction or place name)
+- TAKE: picking up an item
+- DROP: dropping an item
+- GIVE: giving an item to someone
+- TALK: talking to a character
+- LOOK: examining something
+- USE: using an item
+- ATTACK: attacking something
+- HELP: asking for help or a hint
+- QUESTS: checking quest status
+- QUIT: exiting the game
+- SAY: saying something (default for dialogue)
+
+Reply with JSON only:
+{"intent": "INTENT_TYPE", "target": "optional target", "item": "optional item", "recipient": "optional recipient", "direction": "optional direction"}"""
+
+# User prompt template for classification
+classify = """Player: {player}
+Location: {location}
+Items here: {items}
+Characters here: {characters}
+Nearby: {nearby}
+
+Player input: {input}
+
+Classify the intent."""
