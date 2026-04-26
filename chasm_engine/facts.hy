@@ -157,10 +157,18 @@ Replaces the fragile ChromaDB-based memory system.
   Returns count of invalidated facts."
   (let [conditions []
         params []]
-    (when subject (do (.append conditions "subject = ?") (.append params subject)))
-    (when predicate (do (.append conditions "predicate = ?") (.append params predicate)))
-    (when object (do (.append conditions "object = ?") (.append params object)))
-    (when source (do (.append conditions "source = ?") (.append params source)))
+    (when subject
+      (.append conditions "subject = ?")
+      (.append params subject))
+    (when predicate
+      (.append conditions "predicate = ?")
+      (.append params predicate))
+    (when object
+      (.append conditions "object = ?")
+      (.append params object))
+    (when source
+      (.append conditions "source = ?")
+      (.append params source))
     (let [where-clause (if conditions (+ "WHERE " (.join " AND " conditions)) "")
           db (get-db)
           cursor (.cursor db)]
@@ -202,15 +210,30 @@ Replaces the fragile ChromaDB-based memory system.
     offset: Skip this many results"
   (let [conditions []
         params []]
-    (when subject (do (.append conditions "subject = ?") (.append params subject)))
-    (when predicate (do (.append conditions "predicate = ?") (.append params predicate)))
-    (when object (do (.append conditions "object = ?") (.append params object)))
-    (when source (do (.append conditions "source = ?") (.append params source)))
-    (when location (do (.append conditions "location = ?") (.append params location)))
-    (when fact-type (do (.append conditions "fact_type = ?") (.append params fact-type)))
-    (when source-type (do (.append conditions "source_type = ?") (.append params source-type)))
-    (when only-valid (do (.append conditions "invalidated_at IS NULL") 
-                         (.append conditions "(expires_at IS NULL OR expires_at > strftime('%s', 'now'))")))
+    (when subject
+      (.append conditions "subject = ?")
+      (.append params subject))
+    (when predicate
+      (.append conditions "predicate = ?")
+      (.append params predicate))
+    (when object
+      (.append conditions "object = ?")
+      (.append params object))
+    (when source
+      (.append conditions "source = ?")
+      (.append params source))
+    (when location
+      (.append conditions "location = ?")
+      (.append params location))
+    (when fact-type
+      (.append conditions "fact_type = ?")
+      (.append params fact-type))
+    (when source-type
+      (.append conditions "source_type = ?")
+      (.append params source-type))
+    (when only-valid
+      (.append conditions "invalidated_at IS NULL")
+      (.append conditions "(expires_at IS NULL OR expires_at > strftime('%s', 'now'))"))
     
     (let [where-clause (if conditions (+ "WHERE " (.join " AND " conditions)) "")
           limit-clause (if limit (+ "LIMIT " (str limit)) "")
