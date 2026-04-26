@@ -531,7 +531,7 @@ The engine logic is expected to handle many players.
              f"*{(await (place.nearby-str coords))}*"])
           (jnn
             [f"***{(place.name coords)}***"
-             f"*{(await (place.nearby-str coords))}*"])))))
+             f"*{(await (place.nearby-str coords))}*"]))))))
 
 (defn spy [char-name]
   (-> (get-character char-name)

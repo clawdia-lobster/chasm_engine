@@ -15,7 +15,7 @@ Functions that deal with characters.
 
 (import chasm_engine.lib *)
 (import chasm_engine.constants [alphabet default-character banned-names])
-(import chasm_engine.types [Coords Character Item is-at])
+(import chasm_engine.types [Coords Character Item is-at
                             mutable-character-attributes
                             initial-character-attributes])
 (import chasm_engine [place memory_facts])
