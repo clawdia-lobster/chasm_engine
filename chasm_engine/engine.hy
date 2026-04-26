@@ -39,6 +39,30 @@ The engine logic is expected to handle many players.
 (import chasm-engine.summaries [summary-msgs-topic summary-text-topic summary-msgs-points])
 
 
+;; * Turn-level context cache
+;; -----------------------------------------------------------------------------
+
+(setv _context-cache {})
+
+(defn invalidate-context-cache [player-name]
+  "Invalidate cached context for a player."
+  (global _context-cache)
+  (.pop _context-cache player-name None))
+
+(defn get-cached-context [player-name key]
+  "Get cached value for player."
+  (let [player-cache (.get _context-cache player-name {})]
+    (.get player-cache key)))
+
+(defn set-cached-context [player-name key value]
+  "Set cached value for player."
+  (global _context-cache)
+  (unless (in player-name _context-cache)
+    (assoc _context-cache player-name {}))
+  (assoc (.get _context-cache player-name) key value)
+  value)
+
+
 (defclass EngineError [RuntimeError])
 
 (setv develop-queue (set))
@@ -154,6 +178,8 @@ The engine logic is expected to handle many players.
 (defn :async parse [player-name line #* args #** kwargs] ; -> response
   "Process the player's input and return the whole visible state."
   (log.info f"{player-name}: {line}")
+  ;; Invalidate context cache at start of each turn
+  (invalidate-context-cache player-name)
   (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
         player (update-character _player :npc False)
         narrative (get-narrative player-name)
@@ -373,9 +399,12 @@ The engine logic is expected to handle many players.
 
 (defn location-context [character]
   "Fill in location context templates with current information."
-  (plot.context "location"
-    :items-here (item.describe-at character.coords)
-    :characters (character.describe-at character.coords :long False)))
+  (let [cached (get-cached-context character.name "location")]
+    (or cached
+        (set-cached-context character.name "location"
+          (plot.context "location"
+            :items-here (item.describe-at character.coords)
+            :characters (character.describe-at character.coords :long False))))))
   
 (defn npc-context [character]
   "Fill in npc context templates with current information."
@@ -386,36 +415,42 @@ The engine logic is expected to handle many players.
     :inventory (item.describe-inventory character)))
   
 (defn :async player-context [player]
-  "Fill in player context templates with current information."
-  (let [quest-ctx (quest.quest-context player.name)]
-    (plot.context "player"
-      :player player.name
-      :items-here (item.describe-at player.coords)
-      :location (place.name player.coords)
-      :locations (await (place.nearby-str player.coords))
-      :rooms (place.rooms player.coords)
-      :character-descriptions-here (character.describe-at player.coords :long True)
-      :objective player.objective
-      :inventory (item.describe-inventory player)
-      :quests (or quest-ctx ""))))
+  "Fill in player context templates with current information. Cached per turn."
+  (let [cached (get-cached-context player.name "player")]
+    (or cached
+        (let [quest-ctx (quest.quest-context player.name)
+              result (plot.context "player"
+                        :player player.name
+                        :items-here (item.describe-at player.coords)
+                        :location (place.name player.coords)
+                        :locations (await (place.nearby-str player.coords))
+                        :rooms (place.rooms player.coords)
+                        :character-descriptions-here (character.describe-at player.coords :long True)
+                        :objective player.objective
+                        :inventory (item.describe-inventory player)
+                        :quests (or quest-ctx ""))]
+          (set-cached-context player.name "player" result)))))
   
 (defn memories [player [n 6]]
-  "Returns (as a string) top memories for all characters at the player's location."
-  (let [characters-here (character.get-at player.coords)
-        character-names-here (lfor c characters-here c.name)
-        plot-points (jn (plot.recall-points (plot.news)))
-        place-name (place.name player.coords)]
-    (jnn
-      (lfor c (character.get-at player.coords)
-        (let [s (jn [c.objective
-                     plot-points
-                     #* character-names-here
-                     (plot.news)])
-              mem (bullet (character.recall c s :n n))
-              ; Include knowledge from facts system
-              knowledge (memory-facts.knowledge-about c.name place-name :n 3)]
-          (jnn [(if mem f"{c.name} recalls the memories:\n{mem}." "")
-                (if knowledge knowledge "")]))))))
+  "Returns (as a string) top memories for all characters at the player's location. Cached per turn."
+  (let [cached (get-cached-context player.name "memories")]
+    (or cached
+        (set-cached-context player.name "memories"
+          (let [characters-here (character.get-at player.coords)
+                character-names-here (lfor c characters-here c.name)
+                plot-points (jn (plot.recall-points (plot.news)))
+                place-name (place.name player.coords)]
+            (jnn
+              (lfor c (character.get-at player.coords)
+                (let [s (jn [c.objective
+                             plot-points
+                             #* character-names-here
+                             (plot.news)])
+                      mem (bullet (character.recall c s :n n))
+                      ; Include knowledge from facts system
+                      knowledge (memory-facts.knowledge-about c.name place-name :n 3)]
+                  (jnn [(if mem f"{c.name} recalls the memories:\n{mem}." "")
+                        (if knowledge knowledge "")]))))))))
   
 (defn :async hint [messages player line]
   "Offer a hint to aid the player's progress, in light of a question."
