@@ -243,7 +243,7 @@ Implements the Chasm WebSocket Protocol v1.0.
           (touch-session token)
           (if stream
             ; Streaming path
-            (let [send-notification (fn [method data]
+            (let [send-notification (fn :async [method data]
                                      (await (.send websocket
                                                    (json.dumps (make-notification method data)))))]
               (await (engine.parse-stream player-name input websocket send-notification)))
