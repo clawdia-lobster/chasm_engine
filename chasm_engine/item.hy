@@ -50,33 +50,6 @@ Functions that deal with items.
                 :coords place.coords
                 :owner None))))))
 
-#_(defn :async gen-lines [place]
-    "Make up some fantastical item."
-    (let [seed (choice alphanumeric)
-          result (await (item-lines
-                          :world world
-                          :place-name place.name
-                          :seed seed))
-          details (grep-attributes result item-attributes)]
-      (try
-        (let [_name (.pop details "name" None)
-              _alt-name (.pop details "item" None)
-              name (word-chars (or _name _alt-name))]
-          (log.info f"Creating item '{name}'")
-          (when name
-            (Item #** (| {"type" "object"
-                          "appearance" "Looks like you'd expect."
-                          "usage" "Usage unknown."}
-                         details)
-                  :name name
-                  :coords place.coords
-                  :owner None)))
-        (except [e [Exception]]
-          ; generating to template sometimes fails 
-          (log.error "Bad new item" e)
-          (log.error place)
-          (log.error seed)))))
-
 (defn :async spawn [coords]
   "Invent a new item from a place name, store it and return it.
   None if the place doesn't exist or if generation fails."

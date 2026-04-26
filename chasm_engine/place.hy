@@ -94,20 +94,6 @@ Functions that manage place.
        "atmosphere" (:atmosphere details None)
        "terrain" (:terrain details None)})))
 
-#_(defn :async gen-lines [nearby-places]
-    "Make up a place from its neighbours."
-    (let [seed (choice alphanumeric)
-          details (grep-attributes
-                    (await (place-lines
-                             :context context
-                             :seed seed
-                             :place-type (choice place-types)))
-                    place-attributes)
-          name (word-chars (:name details ""))]
-      (when (and name
-                 (< (len (.split (:name details ""))) 4))
-        (| details {"name" name}))))
-
 (defn :async gen-rooms [place-dict]
   "Make up some rooms for a place."
   (extract-json-unwrap

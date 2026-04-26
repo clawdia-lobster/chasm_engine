@@ -178,35 +178,6 @@ Functions that deal with characters.
     (log.info f"{verdict}")
     verdict))
 
-#_(defn :async develop-lines [character messages]
-    "Develop a character's attributes based on the dialogue."
-    (let [nearby-places (.join ", " (await (place.nearby character.coords :name True)))
-          details (grep-lines
-                    (await
-                      (character-develop-lines
-                        messages
-                        #** (._asdict character)
-                        :world world
-                        :place-name (place.name character.coords)
-                        :nearby-places nearby-places))
-                    (append "new_memory" mutable-character-attributes))]
-      (try
-        (let [objective (word-chars (.pop details "objective" ""))
-              new-score (if (await (check-score-increment character dialogue))
-                          score
-                          (inc score))]
-          (log.info f"{character.name}")
-          (.pop details "name" None) ; leave the name alone
-          (remember character (.pop details "new_memory" ""))
-          (update-character character
-                            :score new-score
-                            :objective objective
-                            #** details))
-        (except [e [Exception]]
-          ; generating to template sometimes fails 
-          (log.error "Bad character" e)
-          (log.error details)))))
-
 (defn :async develop-json [character messages]
   "Develop a character's attributes based on the dialogue."
   (let [nearby-places (.join ", " (await (place.nearby character.coords :name True)))
