@@ -400,7 +400,9 @@ Implements the Chasm WebSocket Protocol v1.0.
   (import websockets.server [serve])
   (print f"Starting WebSocket server at ws://{host}:{port}/ws")
   (log.info f"Starting WebSocket server at ws://{host}:{port}/ws")
-  (await (serve handle-websocket host port)))
+  (let [server (await (serve handle-websocket host port))]
+    ; Keep server running forever
+    (await (.wait_closed server))))
 
 
 (defn :async serve-async []
