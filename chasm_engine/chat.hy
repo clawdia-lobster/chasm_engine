@@ -5,7 +5,7 @@ Chat management functions.
 (require hyrule.argmove [-> ->>])
 (require hyjinx.macros [prepend append])
 
-(import hyjinx [first])
+(import hyjinx.lib [first])
 
 (import chasm-engine [log])
 
