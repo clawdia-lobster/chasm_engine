@@ -5,6 +5,7 @@ Replaces ChromaDB with structured facts + full-text search.
 
 (require hyrule.argmove [-> ->>])
 (require hyrule.control [unless])
+(import hyrule [inc])
 
 (import time [time])
 (import json)
@@ -123,7 +124,7 @@ Replaces ChromaDB with structured facts + full-text search.
                 :location (:location f None)
                 :fact-type "hearsay"
                 :confidence (* (:confidence f 1.0) 0.7))
-      (setv shared (+ shared 1)))
+      (setv shared (inc shared)))
     (log.debug f"share-knowledge: {from-name} -> {to-name}: {shared} facts")
     shared))
 

@@ -10,6 +10,7 @@ Design: docs/QUEST_SYSTEM.md
 
 (require hyrule.argmove [-> ->>])
 (require hyrule.control [unless])
+(import hyrule [inc])
 
 (import glob)
 (import json)
@@ -63,7 +64,7 @@ Design: docs/QUEST_SYSTEM.md
         (let [q (load-quest-file (str f))]
           (when (and q (:id q None))
             (setv (get quest-defs (:id q)) q)
-            (setv loaded (+ loaded 1)))))
+            (setv loaded (inc loaded)))))
       (log.info f"Loaded {loaded} quests from {quest-dir}")
       loaded)))
 
