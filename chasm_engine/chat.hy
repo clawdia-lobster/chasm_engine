@@ -19,10 +19,14 @@ Chat management functions.
 
 (defclass ChatError [RuntimeError])
 
-(defn strip-thinking [content]
-  "Remove <think>...</think> blocks from content."
+(defn strip-thinking [#^ str content]
+  "Remove <think>...</think> blocks from content.
+  QwQ/Qwen does not always produce the opening tag."
   (if content
-      (re.sub r"
+      (re.sub r"^(.*?)\s*</think>\s*" ""
+        (re.sub r"^<think>\s*(.*?)\s*</think>\s*" "" content :flags re.DOTALL)
+        :flags re.DOTALL)
+      content))
 
 (setv APIErrors (tuple [openai.APIConnectionError
                  openai.InternalServerError
