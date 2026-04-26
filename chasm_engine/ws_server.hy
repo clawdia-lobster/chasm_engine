@@ -414,7 +414,10 @@ Implements the Chasm WebSocket Protocol v1.0.
 
 (defn main []
   "Run the WebSocket server."
-  (asyncio.run (serve-async)))
+  (try
+    (asyncio.run (serve-async))
+    (except [KeyboardInterrupt]
+      (print "\nServer stopped."))))
 
 (defmain [#* args]
   "Run the WebSocket server."
