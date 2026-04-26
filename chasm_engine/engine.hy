@@ -18,6 +18,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
                             characters
+                            accounts
                             len-items
                             get-place len-places
                             random-coords
@@ -378,9 +379,11 @@ The engine logic is expected to handle many players.
 (defn set-offline-players []
   "Set characters not accessed in last hour to NPC."
   ; TODO: maybe this is server logic, not engine?
-  (for [a (get-accounts)]
+  ; Iterate accounts.items() so we get the name from the dict key,
+  ; since older accounts may not store :name in the value dict.
+  (for [[player-key a] (.items accounts)]
     (let [dt (- (time) (:last-accessed a Inf))
-          char (get-character (:name a))]
+          char (get-character (or (:name a None) player-key))]
       (when (and char (> (abs dt) 3600))
         (update-character char :npc True)))))
 
