@@ -1,7 +1,7 @@
-"
-Structured fact storage using SQLite.
+"""
+Structured fact storage using SQLite with pugsql.
 Replaces the fragile ChromaDB-based memory system.
-"
+"""
 
 (require hyrule.argmove [-> ->>])
 (require hyrule.control [unless])
@@ -9,107 +9,121 @@ Replaces the fragile ChromaDB-based memory system.
 (import json)
 (import time [time])
 (import sqlite3 [OperationalError connect Row])
+(import pathlib [Path])
+
+(import pugsql)
 
 (import chasm_engine [log])
 (import chasm_engine.lib [config])
 (import chasm_engine.state [path])
 
 
-;; * Schema
+;; * PugSQL Setup
 ;; -----------------------------------------------------------------------------
 
-(setv schema-statements [
-  "CREATE TABLE IF NOT EXISTS facts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    subject TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    object TEXT,
-    location TEXT,
-    coords TEXT,
-    timestamp REAL NOT NULL,
-    source TEXT NOT NULL,
-    source_type TEXT DEFAULT 'character',
-    fact_type TEXT DEFAULT 'fact',
-    confidence REAL DEFAULT 1.0,
-    expires_at REAL,
-    invalidated_at REAL,
-    invalidated_reason TEXT,
-    created_at REAL DEFAULT (strftime('%s', 'now'))
-  )"
-  
-  "CREATE INDEX IF NOT EXISTS idx_facts_subject ON facts(subject)"
-  "CREATE INDEX IF NOT EXISTS idx_facts_source ON facts(source)"
-  "CREATE INDEX IF NOT EXISTS idx_facts_location ON facts(location)"
-  "CREATE INDEX IF NOT EXISTS idx_facts_timestamp ON facts(timestamp)"
-  "CREATE INDEX IF NOT EXISTS idx_facts_source_subject ON facts(source, subject)"
-  "CREATE INDEX IF NOT EXISTS idx_facts_subject_predicate ON facts(subject, predicate)"
-  
-  "CREATE TABLE IF NOT EXISTS fact_tags (
-    fact_id INTEGER REFERENCES facts(id) ON DELETE CASCADE,
-    tag TEXT NOT NULL,
-    PRIMARY KEY (fact_id, tag)
-  )"
-  "CREATE INDEX IF NOT EXISTS idx_fact_tags_tag ON fact_tags(tag)"
-  
-  "CREATE TABLE IF NOT EXISTS fact_provenance (
-    fact_id INTEGER REFERENCES facts(id) ON DELETE CASCADE,
-    origin_type TEXT NOT NULL,
-    origin_id TEXT,
-    origin_data TEXT,
-    PRIMARY KEY (fact_id)
-  )"
-  
-  ;; FTS5 virtual table for full-text search
-  "CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
-    subject, predicate, object, location,
-    content='facts',
-    content_rowid='id'
-  )"
-  
-  ;; Triggers to keep FTS in sync
-  "CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
-    INSERT INTO facts_fts(rowid, subject, predicate, object, location)
-    VALUES (new.id, new.subject, new.predicate, new.object, new.location);
-  END"
-  
-  "CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
-    INSERT INTO facts_fts(facts_fts, rowid, subject, predicate, object, location)
-    VALUES ('delete', old.id, old.subject, old.predicate, old.object, old.location);
-  END"
-  
-  "CREATE TRIGGER IF NOT EXISTS facts_au AFTER UPDATE ON facts BEGIN
-    INSERT INTO facts_fts(facts_fts, rowid, subject, predicate, object, location)
-    VALUES ('delete', old.id, old.subject, old.predicate, old.object, old.location);
-    INSERT INTO facts_fts(rowid, subject, predicate, object, location)
-    VALUES (new.id, new.subject, new.predicate, new.object, new.location);
-  END"
-  
-  "CREATE VIEW IF NOT EXISTS valid_facts AS
-  SELECT * FROM facts
-  WHERE invalidated_at IS NULL
-    AND (expires_at IS NULL OR expires_at > strftime('%s', 'now'))"
-  
-  "CREATE VIEW IF NOT EXISTS character_knowledge AS
-  SELECT * FROM valid_facts WHERE source_type = 'character'"
-  
-  "CREATE VIEW IF NOT EXISTS world_facts AS
-  SELECT * FROM valid_facts WHERE source_type IN ('narrator', 'system')"
-])
+;; Get the SQL file path - use absolute path based on module location
+(import os)
+(import importlib.util)
+(setv _facts-queries None)
+(setv _sql-path None)
 
+(defn get-sql-path []
+  "Get the SQL file path lazily."
+  (global _sql-path)
+  (when (is _sql-path None)
+    ;; Try multiple approaches to find the module location
+    (import sys [modules])
+    (import importlib.util)
+    (setv module-file None)
+    
+    ;; Approach 1: Use __file__ from module
+    (setv this-module (.get modules "chasm_engine.facts"))
+    (when this-module
+      (setv module-file (getattr this-module "__file__" None)))
+    
+    ;; Approach 2: Use find_spec
+    (when (is module-file None)
+      (setv spec (importlib.util.find-spec "chasm_engine.facts"))
+      (when spec
+        (setv module-file spec.origin)))
+    
+    ;; Approach 3: Use chasm_engine package location
+    (when (is module-file None)
+      (setv engine-spec (importlib.util.find-spec "chasm_engine"))
+      (when engine-spec
+        (setv engine-path (getattr (Path engine-spec.origin) "parent"))
+        (setv module-file (str (.joinpath engine-path "facts.hy")))))
+    
+    ;; Final fallback: assume relative to cwd
+    (when (is module-file None)
+      (setv module-file (str (Path (os.getcwd) "chasm_engine" "facts.hy"))))
+    
+    (setv sql-dir (getattr (Path module-file) "parent"))
+    (setv _sql-path (str (.joinpath sql-dir "sql" "facts.sql"))))
+  _sql-path)
+
+(defn get-facts-queries []
+  "Get or initialise the pugsql queries module."
+  (global _facts-queries)
+  (when (is _facts-queries None)
+    (setv _facts-queries (.module pugsql (get-sql-path))))
+  _facts-queries)
+
+
+;; * Database Connection
+;; -----------------------------------------------------------------------------
+
+(defn get-db-path []
+  "Get the path to the facts database."
+  f"{path}/facts.sqlite")
+
+
+(defn get-db []
+  "Get a connection to the facts database."
+  (let [db-path (get-db-path)
+        conn (connect db-path)]
+    ;; Return rows as dict-like objects
+    (setv conn.row_factory Row)
+    conn))
+
+
+(defn init-connection []
+  "Initialise the pugsql connection."
+  (.connect (get-facts-queries) (get-db-path)))
+
+
+;; * Schema Initialisation
+;; -----------------------------------------------------------------------------
 
 (defn init-schema []
   "Initialise the facts schema. Called on module load."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (for [stmt schema-statements]
-        (.execute cursor stmt))
-      (.commit db)
-      (log.info "Facts schema initialised")
-      (except [e OperationalError]
-        (log.error f"Failed to initialise facts schema: {e}"))
-      (finally
-        (.close db)))))
+  (try
+    ;; Initialise pugsql connection
+    (init-connection)
+    
+    ;; Create tables and indexes
+    (let [fq (get-facts-queries)]
+      (fq.create_table_facts)
+      (fq.create_index_facts_subject)
+      (fq.create_index_facts_source)
+      (fq.create_index_facts_location)
+      (fq.create_index_facts_timestamp)
+      (fq.create_index_facts_source-subject)
+      (fq.create_index_facts_subject-predicate)
+      (fq.create_table_fact_tags)
+      (fq.create_index_fact_tags_tag)
+      (fq.create_table_fact_provenance)
+      (fq.create_fts_table)
+      (fq.create_trigger_facts_ai)
+      (fq.create_trigger_facts_ad)
+      (fq.create_trigger_facts_au)
+      (fq.create_view_valid_facts)
+      (fq.create_view_character_knowledge)
+      (fq.create_view_world_facts))
+    
+    (log.info "Facts schema initialised")
+    (except [e Exception]
+      (log.error f"Failed to initialise facts schema: {e}"))))
 
 
 ;; * Helpers
@@ -117,23 +131,14 @@ Replaces the fragile ChromaDB-based memory system.
 
 (defn row->dict [row]
   "Convert a sqlite row to a dict."
-  (let [keys (row.keys)]
-    (dict (zip keys row))))
+  (when row
+    (let [keys (row.keys)]
+      (dict (zip keys row)))))
 
 
-(defn time []
-  "Current Unix timestamp."
-  (import time [time])
-  (time))
-
-
-(defn get-db []
-  "Get a connection to the facts database."
-  (let [db-path f"{path}/facts.sqlite"
-        conn (connect db-path)]
-    ;; Return rows as dict-like objects
-    (setv conn.row_factory Row)
-    conn))
+(defn rows->dicts [rows]
+  "Convert sqlite rows to a list of dicts."
+  (lfor row rows (row->dict row)))
 
 
 ;; * Core CRUD
@@ -151,98 +156,81 @@ Replaces the fragile ChromaDB-based memory system.
                 [origin-type "observation"]
                 [origin-id None]
                 [origin-data None]]
-  "Add a new fact. Returns fact ID or None on failure.
-
-  Args:
-    subject: Who/what the fact is about (e.g. 'Alice', 'the sword')
-    predicate: Relationship (e.g. 'knows', 'has', 'is', 'saw', 'wants')
-    object: Target of relationship (can be None for unary facts)
-    location: Place name where fact was learned
-    coords: Coords dict {'x': int, 'y': int}
-    source: Who knows this (character name or 'narrator')
-    source-type: 'character', 'narrator', or 'system'
-    fact-type: 'fact', 'belief', 'rumour', 'observation'
-    confidence: 0.0-1.0 certainty level
-    expires-after: Seconds until expiration, or None
-    tags: List of category tags
-    origin-type: How this fact was derived
-    origin-data: Raw text that generated this fact"
-  (let [db (get-db)
-        cursor (.cursor db)
-        now (time)
+  "Add a new fact. Returns fact ID or None on failure."
+  (let [now (time)
         expires (when expires-after (+ now expires-after))
         coords-json (when coords (json.dumps coords))]
     (try
-      (.execute cursor
-        "INSERT INTO facts (subject, predicate, object, location, coords, timestamp, source, source_type, fact_type, confidence, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        #(subject predicate object location coords-json now source source-type fact-type confidence expires))
-      (let [fact-id cursor.lastrowid]
+      ;; Insert the fact
+      (let [fq (get-facts-queries)
+            result (fq.insert_fact
+                     :subject subject
+                     :predicate predicate
+                     :object object
+                     :location location
+                     :coords coords-json
+                     :timestamp now
+                     :source source
+                     :source_type source-type
+                     :fact_type fact-type
+                     :confidence confidence
+                     :expires_at expires)
+            fact-id (:id (first result))]
         ;; Add tags
         (when tags
-          (.executemany cursor
-            "INSERT INTO fact_tags (fact_id, tag) VALUES (?, ?)"
-            (lfor tag tags #(fact-id tag))))
+          (for [tag tags]
+            (fq.insert_fact-tag :fact_id fact-id :tag tag)))
         ;; Add provenance
         (when origin-data
-          (.execute cursor
-            "INSERT INTO fact_provenance (fact_id, origin_type, origin_id, origin_data) VALUES (?, ?, ?, ?)"
-            #(fact-id origin-type origin-id origin-data)))
-        (.commit db)
+          (fq.insert_fact-provenance
+            :fact_id fact-id
+            :origin_type origin-type
+            :origin_id origin-id
+            :origin_data origin-data))
         fact-id)
-      (except [e OperationalError]
+      (except [e Exception]
         (log.error f"Failed to add fact: {e}")
-        None)
-      (finally
-        (.close db)))))
+        None))))
 
 
 (defn get-fact [fact-id]
   "Retrieve a single fact by ID. Returns dict or None."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (.execute cursor "SELECT * FROM facts WHERE id = ?" #(fact-id))
-      (let [row (.fetchone cursor)]
-        (when row (row->dict row)))
-      (finally
-        (.close db)))))
+  (try
+    (let [fq (get-facts-queries)
+          result (fq.get_fact_by_id :id fact-id)]
+      (row->dict (first result)))
+    (except [e Exception]
+      (log.error f"Failed to get fact: {e}")
+      None)))
 
 
 (defn invalidate-fact [fact-id reason]
   "Mark a fact as invalidated. Returns True on success."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (.execute cursor
-        "UPDATE facts SET invalidated_at = ?, invalidated_reason = ? WHERE id = ?"
-        #((time) reason fact-id))
-      (.commit db)
-      (> cursor.rowcount 0)
-      (finally
-        (.close db)))))
+  (try
+    (let [fq (get-facts-queries)]
+      (fq.invalidate_fact_by_id
+        :invalidated_at (time)
+        :invalidated_reason reason
+        :id fact-id))
+    True
+    (except [e Exception]
+      (log.error f"Failed to invalidate fact: {e}")
+      False)))
 
 
 (defn invalidate-by-query [subject predicate object source]
-  "Invalidate all facts matching the given criteria.
-  Any None parameter is treated as wildcard.
-  Returns count of invalidated facts."
-  (let [conditions []
-        params []]
-    (when subject (do (.append conditions "subject = ?") (.append params subject)))
-    (when predicate (do (.append conditions "predicate = ?") (.append params predicate)))
-    (when object (do (.append conditions "object = ?") (.append params object)))
-    (when source (do (.append conditions "source = ?") (.append params source)))
-    (let [where-clause (if conditions (+ "WHERE " (.join " AND " conditions)) "")
-          db (get-db)
-          cursor (.cursor db)]
-      (try
-        (.execute cursor
-          (+ "UPDATE facts SET invalidated_at = strftime('%s', 'now'), invalidated_reason = 'bulk_invalidation' " where-clause)
-          params)
-        (.commit db)
-        (.rowcount cursor)
-        (finally
-          (.close db))))))
+  "Invalidate all facts matching the given criteria."
+  (try
+    (let [fq (get-facts-queries)]
+      (fq.invalidate_facts_by_query
+        :invalidated_at (time)
+        :subject subject
+        :predicate predicate
+        :object object
+        :source source))
+    (except [e Exception]
+      (log.error f"Failed to invalidate facts: {e}")
+      0)))
 
 
 ;; * Querying
@@ -258,42 +246,24 @@ Replaces the fragile ChromaDB-based memory system.
                    [only-valid True]
                    [limit None]
                    [offset None]]
-  "Query facts with flexible filtering. Returns list of dicts.
-
-  Args:
-    subject: Filter by subject (exact match)
-    predicate: Filter by predicate (exact match)
-    object: Filter by object (exact match)
-    source: Filter by source (who knows this)
-    location: Filter by location
-    fact-type: Filter by fact type
-    source-type: Filter by source type
-    only-valid: Exclude invalidated/expired facts
-    limit: Maximum results to return
-    offset: Skip this many results"
-  (let [conditions []
-        params []]
-    (when subject (do (.append conditions "subject = ?") (.append params subject)))
-    (when predicate (do (.append conditions "predicate = ?") (.append params predicate)))
-    (when object (do (.append conditions "object = ?") (.append params object)))
-    (when source (do (.append conditions "source = ?") (.append params source)))
-    (when location (do (.append conditions "location = ?") (.append params location)))
-    (when fact-type (do (.append conditions "fact_type = ?") (.append params fact-type)))
-    (when source-type (do (.append conditions "source_type = ?") (.append params source-type)))
-    (when only-valid (do (.append conditions "invalidated_at IS NULL") 
-                         (.append conditions "(expires_at IS NULL OR expires_at > strftime('%s', 'now'))")))
-    
-    (let [where-clause (if conditions (+ "WHERE " (.join " AND " conditions)) "")
-          limit-clause (if limit (+ "LIMIT " (str limit)) "")
-          offset-clause (if offset (+ "OFFSET " (str offset)) "")
-          sql (+ "SELECT * FROM facts " where-clause " ORDER BY timestamp DESC " limit-clause " " offset-clause)
-          db (get-db)
-          cursor (.cursor db)]
-      (try
-        (.execute cursor sql params)
-        (lfor row (.fetchall cursor) (row->dict row))
-        (finally
-          (.close db))))))
+  "Query facts with flexible filtering. Returns list of dicts."
+  (try
+    (let [fq (get-facts-queries)
+          results (fq.query_facts
+                    :subject subject
+                    :predicate predicate
+                    :object object
+                    :source source
+                    :location location
+                    :fact_type fact-type
+                    :source_type source-type
+                    :only_valid (if only-valid 1 0)
+                    :limit limit
+                    :offset offset)]
+      (rows->dicts results))
+    (except [e Exception]
+      (log.error f"Failed to query facts: {e}")
+      [])))
 
 
 (defn what-does-know [character-name about-subject]
@@ -308,42 +278,31 @@ Replaces the fragile ChromaDB-based memory system.
 
 (defn recent-facts [[n 10]]
   "Get the most recent facts."
-  (query-facts :limit n))
+  (try
+    (let [fq (get-facts-queries)
+          results (fq.get_recent_facts :n n)]
+      (rows->dicts results))
+    (except [e Exception]
+      (log.error f"Failed to get recent facts: {e}")
+      [])))
 
 
 (defn search-facts [query [n 20] [source None]]
-  "Full-text search across facts. Returns list of dicts.
-
-  Args:
-    query: FTS5 search query (e.g. 'sword OR key')
-    n: Maximum results to return
-    source: Optional filter by source (character name)
-
-  Example:
-    (search-facts \"golden\")
-    (search-facts \"tavern AND Alice\")
-  "
-  (let [db (get-db)
-        cursor (.cursor db)
-        source-filter (if source "AND source = ?" "")
-        sql (+ "SELECT f.* FROM facts f "
-               "JOIN facts_fts fts ON f.id = fts.rowid "
-               "WHERE facts_fts MATCH ? "
-               source-filter
-               " AND f.invalidated_at IS NULL "
-               "ORDER BY f.timestamp DESC LIMIT ?")
-        params (if source [query source n] [query n])]
-    (try
-      (.execute cursor sql params)
-      (lfor row (.fetchall cursor) (row->dict row))
-      (except [OperationalError]
-        [])
-      (finally
-        (.close db)))))
+  "Full-text search across facts. Returns list of dicts."
+  (try
+    (let [fq (get-facts-queries)
+          results (fq.search_facts_fts
+                    :query query
+                    :source source
+                    :n n)]
+      (rows->dicts results))
+    (except [e Exception]
+      (log.error f"Failed to search facts: {e}")
+      [])))
 
 
 ;; * Convenience Functions
-;; -----------------------------------------------------------------------------
+;;;; -----------------------------------------------------------------------------
 
 (defn format-fact [fact]
   "Format a fact for display."
@@ -372,45 +331,35 @@ Replaces the fragile ChromaDB-based memory system.
 
 (defn add-tag [fact-id tag]
   "Add a tag to a fact."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (.execute cursor
-        "INSERT OR IGNORE INTO fact_tags (fact_id, tag) VALUES (?, ?)"
-        #(fact-id tag))
-      (.commit db)
-      True
-      (except [e OperationalError]
-        (log.error f"Failed to add tag: {e}")
-        False)
-      (finally
-        (.close db)))))
+  (try
+    (let [fq (get-facts-queries)]
+      (fq.insert_fact-tag :fact_id fact-id :tag tag))
+    True
+    (except [e Exception]
+      (log.error f"Failed to add tag: {e}")
+      False)))
 
 
 (defn get-tags [fact-id]
   "Get all tags for a fact."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (.execute cursor
-        "SELECT tag FROM fact_tags WHERE fact_id = ?"
-        #(fact-id))
-      (lfor row (.fetchall cursor) (get row 0))
-      (finally
-        (.close db)))))
+  (try
+    (let [fq (get-facts-queries)
+          results (fq.get_tags_for_fact :fact_id fact-id)]
+      (lfor row results (:tag row)))
+    (except [e Exception]
+      (log.error f"Failed to get tags: {e}")
+      [])))
 
 
 (defn facts-with-tag [tag]
   "Get all facts with a specific tag."
-  (let [db (get-db)
-        cursor (.cursor db)]
-    (try
-      (.execute cursor
-        "SELECT f.* FROM facts f JOIN fact_tags t ON f.id = t.fact_id WHERE t.tag = ?"
-        #(tag))
-      (lfor row (.fetchall cursor) (row->dict row))
-      (finally
-        (.close db)))))
+  (try
+    (let [fq (get-facts-queries)
+          results (fq.get_facts_with_tag :tag tag)]
+      (rows->dicts results))
+    (except [e Exception]
+      (log.error f"Failed to get facts with tag: {e}")
+      [])))
 
 
 ;; * Initialisation

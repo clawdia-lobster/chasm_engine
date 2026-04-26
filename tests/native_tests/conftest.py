@@ -21,26 +21,51 @@ def temp_db_path():
 def facts_db(monkeypatch, temp_db_path):
     """Set up a temporary facts database for testing."""
     import chasm_engine.facts
+    import pugsql
     
-    # Store original get-db function
-    original_get_db = chasm_engine.facts.get_db
+    # Reset the global pugsql queries cache
+    monkeypatch.setattr(chasm_engine.facts, "_facts_queries", None, raising=False)
     
-    def test_get_db():
-        """Return connection to test database."""
-        conn = sqlite3.connect(temp_db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    # Get the SQL path (returns path to the SQL file)
+    sql_file = chasm_engine.facts.get_sql_path()
+    sql_dir = str(Path(sql_file).parent)
     
-    # Monkey-patch the get-db function
-    monkeypatch.setattr(chasm_engine.facts, "get_db", test_get_db)
+    # Create a new pugsql module connected to test database
+    test_queries = pugsql.module(sql_dir)
+    test_queries.connect(f"sqlite:///{temp_db_path}")
     
-    # Initialise schema
-    chasm_engine.facts.init_schema()
+    # Monkey-patch get_facts_queries to return our test module
+    def test_get_facts_queries():
+        return test_queries
+    
+    monkeypatch.setattr(chasm_engine.facts, "get_facts_queries", test_get_facts_queries)
+    
+    # Initialise schema using the test connection
+    try:
+        test_queries.create_table_facts()
+        test_queries.create_index_facts_subject()
+        test_queries.create_index_facts_source()
+        test_queries.create_index_facts_location()
+        test_queries.create_index_facts_timestamp()
+        test_queries.create_index_facts_source_subject()
+        test_queries.create_index_facts_subject_predicate()
+        test_queries.create_table_fact_tags()
+        test_queries.create_index_fact_tags_tag()
+        test_queries.create_table_fact_provenance()
+        test_queries.create_fts_table()
+        test_queries.create_trigger_facts_ai()
+        test_queries.create_trigger_facts_ad()
+        test_queries.create_trigger_facts_au()
+        test_queries.create_view_valid_facts()
+        test_queries.create_view_character_knowledge()
+        test_queries.create_view_world_facts()
+    except Exception as e:
+        print(f"Schema init error: {e}")
     
     yield temp_db_path
     
-    # Restore original function
-    monkeypatch.setattr(chasm_engine.facts, "get_db", original_get_db)
+    # Disconnect test database
+    test_queries.disconnect()
 
 
 @pytest.fixture
