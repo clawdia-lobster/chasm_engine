@@ -3,6 +3,7 @@
 **Last Updated:** 2026-04-26
 **Branch:** nereus
 **Tests:** 26 passing
+**E2E Test:** WebSocket protocol verified (motd, online, spawn)
 
 ## Architecture
 
@@ -103,16 +104,20 @@ websocket_url = "ws://localhost:8765"
 
 ## Known Issues
 
-1. **ptk_repl.hy incomplete** — TUI migration not finished
+1. **ptk_repl.hy incomplete** — TUI migration not finished (but functional)
 2. **No push access** — Commits ready but cannot push to GitHub
-3. **Style warnings** — `hylint` reports minor issues (redundant `do`, use `inc`)
+3. **JWT key warning** — jwt_secret in server.toml should be 32+ bytes
+4. **spawn fails without LLM** — Expected if no LLM backend configured
 
 ## Testing
 
 ```bash
-# Run tests
+# Run unit tests
 cd chasm
 .venv/bin/python -m pytest ../chasm_engine/tests/native_tests/ --assert=plain -v
+
+# Run e2e WebSocket test
+.venv/bin/python test_ws_e2e.py
 
 # Lint Hy files
 .venv/bin/python -c "
@@ -122,10 +127,6 @@ for f in Path('../chasm_engine/chasm_engine').glob('*.hy'):
     issues = lint(f.read_text())
     if issues: print(f'{f.name}: {len(issues)} issues')
 "
-
-# Integration test
-cd chasm_engine
-python test_ws.py
 ```
 
 ## Deployment
