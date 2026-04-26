@@ -19,6 +19,11 @@ Chat management functions.
 
 (defclass ChatError [RuntimeError])
 
+(defn strip-thinking [content]
+  "Remove <think>...</think> blocks from content."
+  (if content
+      (re.sub r"
+
 (setv APIErrors (tuple [openai.APIConnectionError
                  openai.InternalServerError
                  openai.APIStatusError
@@ -150,7 +155,7 @@ Chat management functions.
                            :messages (standard-roles messages)
                            :extra-body extra-body
                            #** params))]
-          (. (. (first response.choices) message) content)))))
+          (strip-thinking (. (. (first response.choices) message) content)))))
 
 (defn :async 
   [(retry :wait (wait-random-exponential :min 0.5 :max 10)
@@ -208,4 +213,4 @@ Chat management functions.
         (let [delta (. (first chunk.choices) delta)]
           (when delta.content
             (.append content delta.content)))))
-    (.join "" content)))
+    (strip-thinking (.join "" content))))
