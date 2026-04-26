@@ -22,8 +22,8 @@ N.B. don't change the order of attributes, because the serialisation is order-de
 They must be integer."
   {"x" (int x) "y" (int y)})
 
-(defn at? [coords1 coords2]
-  "Equality in location. Example usage: `(at? item.coords character.coords)`."
+(defn is-at [coords1 coords2]
+  "Equality in location. Example usage: `(is-at item.coords character.coords)`."
   (and coords1 coords2
        (= (:x coords1) (:x coords2))
        (= (:y coords1) (:y coords2))))

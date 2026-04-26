@@ -15,7 +15,7 @@ Functions that deal with characters.
 
 (import chasm_engine.lib *)
 (import chasm_engine.constants [alphabet default-character banned-names])
-(import chasm_engine.types [Coords Character Item at?
+(import chasm_engine.types [Coords Character Item is-at])
                             mutable-character-attributes
                             initial-character-attributes])
 (import chasm_engine [place memory_facts])
@@ -35,7 +35,7 @@ Functions that deal with characters.
 (def-fill-template character mentioned mentioned-system)
 
 
-(defn valid-key? [s]
+(defn is-valid-key [s]
   (re.match "^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$" s))
 
 (defn :async spawn [[name None] [coords (Coords 0 0)] [loaded {}] [retries 0]] ; -> Character
@@ -62,7 +62,7 @@ Functions that deal with characters.
         (log.info f"{char.name}")
         (when loaded (log.info f"loaded: {sanitised}"))
         (if (and character.name
-                 (valid-key? (character-key character.name))
+                 (is-valid-key (character-key character.name))
                  (< retries 5))
             (do
               (log.info f"set character {name} -> {char.name}")
@@ -155,7 +155,7 @@ Functions that deal with characters.
   (let [cs (get-characters)]
     (if cs
       (lfor character cs
-            :if (and (at? coords character.coords)
+            :if (and (is-at coords character.coords)
                      (not (= character.name exclude)))
             character)
       []))) 
@@ -165,7 +165,7 @@ Functions that deal with characters.
   (update-character character :coords coords)
   coords)
 
-(defn :async increment-score? [character messages]
+(defn :async check-score-increment [character messages]
   "Has the character done something worthwhile?"
   (let [setting f"Story setting: {world}"
         result (await
@@ -192,7 +192,7 @@ Functions that deal with characters.
                     (append "new_memory" mutable-character-attributes))]
       (try
         (let [objective (word-chars (.pop details "objective" ""))
-              new-score (if (await (increment-score? character dialogue))
+              new-score (if (await (check-score-increment character dialogue))
                           score
                           (inc score))]
           (log.info f"{character.name}")
@@ -224,7 +224,7 @@ Functions that deal with characters.
                         k v)]
     (try
       (let [objective (word-chars (.pop clean-details "objective" ""))
-            new-score (if (await (increment-score? character messages))
+            new-score (if (await (check-score-increment character messages))
                         character.score
                         (inc character.score))]
         (log.info f"{character.name}")
@@ -282,7 +282,7 @@ Functions that deal with characters.
                                  (sieve)
                                  (filter (fn [x] (not (fuzzy-in x disallowed))))
                                  (filter (fn [x] (< (len (.split x)) 3))) ; exclude long rambling non-names
-                                 (filter valid-key?)
+                                 (filter is-valid-key)
                                  (list))]
     (log.info f"{filtered-char-list}")
     (cut filtered-char-list 3)))

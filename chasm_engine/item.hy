@@ -13,7 +13,7 @@ Functions that deal with items.
 (import chasm_engine.lib *)
 (import chasm_engine.constants [alphanumeric item-attributes full-inventory-messages inventory-capacity])
 (import chasm_engine [place state])
-(import chasm_engine.types [Item Coords at?])
+(import chasm_engine.types [Item Coords is-at])
 (import chasm_engine.state [world get-item set-item update-item get-item-names])
 
 
@@ -90,7 +90,7 @@ Functions that deal with items.
 (defn get-items [coords]
   "List of (unowned) items at a location"
   (lfor item (state.get-items)
-        :if (at? coords item.coords)
+        :if (is-at coords item.coords)
         item)) 
 
 (defn describe-at [coords]

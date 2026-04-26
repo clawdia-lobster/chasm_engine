@@ -163,10 +163,10 @@ The engine logic is expected to handle many players.
         result (try
                  (cond
                    ;; responses as info / error
-                   (quit? line) (do (update-character player :npc True) (msg "QUIT" "QUIT"))
-                   (take? line) (info (item.fuzzy-claim (take? line) player))
-                   (drop? line) (info (item.fuzzy-drop (drop? line) player))
-                   (give? line) (info (item.fuzzy-give player #* (give? line)))
+                   (is-quit line) (do (update-character player :npc True) (msg "QUIT" "QUIT"))
+                   (parse-take line) (info (item.fuzzy-claim (parse-take line) player))
+                   (parse-drop line) (info (item.fuzzy-drop (parse-drop line) player))
+                   (parse-give line) (info (item.fuzzy-give player #* (parse-give line)))
 
                    (.startswith line "/help") (info (help-str))
                    (.startswith line "/hint") (info (await (hint messages player line)))
@@ -180,10 +180,10 @@ The engine logic is expected to handle many players.
                    ;(.startswith line "/what-if") (info (await (narrate (append (user (last (.partition line))) messages) player))) ; for debugging
 
                    ;; responses as assistant
-                   (look? line) (assistant (await (place.describe player :messages messages :length "short")))
-                   (go? line) (assistant (await (move (append user-msg messages) player)))
-                   ;(talk? line) (assistant (converse (append user-msg messages) player)) ; this one needs thinking about
-                   (command? line) (let [u-msg (user (get line (slice 1 None)))]
+                   (is-look line) (assistant (await (place.describe player :messages messages :length "short")))
+                   (parse-go line) (assistant (await (move (append user-msg messages) player)))
+                   ;(parse-talk line) (assistant (converse (append user-msg messages) player)) ; this one needs thinking about
+                   (is-command line) (let [u-msg (user (get line (slice 1 None)))]
                                      (assistant (await (narrate (append u-msg messages) player))))
                    line (assistant (await (narrate (append user-msg messages) player))))
                  (except [err [ChatError]]
@@ -274,51 +274,51 @@ The engine logic is expected to handle many players.
       (when (and char (> (abs dt) 3600))
         (update-character char :npc True)))))
 
-;; Parser functions -> bool
+;; Parser functions
 ;; -----------------------------------------------------------------------------
 
-(defn command? [line]
+(defn is-command [line]
   (.startswith line "/"))
 
-(defn quit? [line]
+(defn is-quit [line]
   (or (.startswith line "/q")
       (.startswith line "/exit")))
 
-(defn look? [line]
+(defn is-look [line]
   (.startswith line "/l"))
 
-(defn hist? [line]
+(defn is-hist [line]
   (.startswith line "/hist"))
 
-(defn go? [line] ; -> direction or None
+(defn parse-go [line] ; -> direction or None
   "Are you trying to go to a new direction?"
   (let [[_cmd _ dirn] (.partition line " ")
         cmd (.lower _cmd)]
     (cond (= cmd "/go") (re.sub "^to " "" (sstrip dirn))
           (= cmd "go") (re.sub "^to " "" (sstrip dirn))
-          (and (command? cmd) (in (rest cmd) compass-directions)) (rest (sstrip cmd)) ; '/sw' etc
+          (and (is-command cmd) (in (rest cmd) compass-directions)) (rest (sstrip cmd)) ; '/sw' etc
           (in cmd compass-directions) (sstrip cmd)))) ; plain 'east' etc
 
-(defn take? [line] ; -> obj or None
+(defn parse-take [line] ; -> obj or None
   "Are you trying to pick up an item?"
   (let [[_cmd _ obj] (.partition line " ")
         cmd (.lower _cmd)]
     (when (.startswith cmd "/take") (sstrip obj))))
 
-(defn drop? [line] ; -> item or None
+(defn parse-drop [line] ; -> item or None
   "Are you trying to drop an item?"
   (let [[_cmd _ obj] (.partition line " ")
         cmd (.lower _cmd)]
     (when (.startswith cmd "/drop") (sstrip obj))))
 
-(defn give? [line] ; -> [item character] or None
+(defn parse-give [line] ; -> [item character] or None
   "Are you trying to give an item?"
   (let [[cmd _ obj-recip] (.partition line " ")
         cmd (.lower cmd)
         [obj _ recipient] (.partition obj-recip " to ")]
     (when (.startswith cmd "/give") [(sstrip obj) (get-character (sstrip recipient))])))
 
-(defn talk? [line] ; -> string or None
+(defn parse-talk [line] ; -> string or None
   "Are you trying to talk to another character?"
   (let [[_cmd _ char] (.partition line " ")
         cmd (.lower _cmd)]
@@ -356,7 +356,7 @@ The engine logic is expected to handle many players.
   "Move the player. Describe. `dirn` may be a compass direction like 'n' or a place name like 'Small House'"
   (let [user-msg (last messages)
         line (:content user-msg)
-        dirn (go? line)
+        dirn (parse-go line)
         new-coords (await (place.go dirn player.coords))
         here (get-place player.coords)]
     (log.info f"{player.name} to {dirn} {player.coords} -> {new-coords}")

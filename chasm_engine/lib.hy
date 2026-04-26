@@ -196,7 +196,7 @@
         (.group m)
         "")))
   
-(defn last-word? [s1 s2]
+(defn is-last-word [s1 s2]
   "Is one string the last word of the other?"
   (let [ss1 (.split s1)
         ss2 (.split s2)])
@@ -208,7 +208,7 @@
   (let [cs1 (sstrip (str s1))
         cs2 (sstrip (str s2))
         score (let [jw-score (jaro.jaro-winkler-metric cs1 cs2)]
-                (if (last-word? cs1 cs2)
+                (if (is-last-word cs1 cs2)
                     (+ jw-score 0.4)
                     jw-score))]
     (> score threshold)))

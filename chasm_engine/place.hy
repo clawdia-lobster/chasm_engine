@@ -34,12 +34,12 @@ Functions that manage place.
 ;; Anything -> bool
 ;; -----------------------------------------------------------------------------
 
-(defn nearby? [coords1 coords2 [distance 1]]
+(defn is-nearby [coords1 coords2 [distance 1]]
   "Is coord1 within a distance of coord2 (inclusive)?"
   (and (<= (abs (- (:x coords1) (:x coords2))) distance)
        (<= (abs (- (:y coords1) (:y coords2))) distance)))
 
-(defn :async [(alru-cache :maxsize 1000)] accessible? [placename destination]
+(defn :async [(alru-cache :maxsize 1000)] is-accessible [placename destination]
   "Is a destination accessible to the player?
   We cache this both for performance and (runtime) persistence of place characteristics."
   (let [response (await (place-accessible
@@ -231,7 +231,7 @@ Functions that manage place.
   (let [place (get-place coords)
         near-places (await (nearby coords :place True :list-inaccessible True))
         dests (lfor dest near-places
-                    (when (and place (await (accessible? place.name dest.name)))
+                    (when (and place (await (is-accessible place.name dest.name)))
                           dest))]
     (or (list (sieve dests))
         (cut (sorted near-places
