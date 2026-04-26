@@ -217,7 +217,7 @@ Replaces the fragile ChromaDB-based memory system.
         "UPDATE facts SET invalidated_at = ?, invalidated_reason = ? WHERE id = ?"
         #((time) reason fact-id))
       (.commit db)
-      (> (.rowcount cursor) 0)
+      (> cursor.rowcount 0)
       (finally
         (.close db)))))
 

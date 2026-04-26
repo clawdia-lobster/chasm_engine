@@ -63,7 +63,7 @@ Replaces ChromaDB with structured facts + full-text search.
                     results)
         ;; Extract just the text (object field contains the memory)
         documents (lfor r filtered (:object r))]
-    {"documents" [documents]}))
+    {"documents" documents}))
 
 
 (defn recent [name [n 5] [where None]]
