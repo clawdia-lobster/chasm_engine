@@ -19,15 +19,6 @@ Chat management functions.
 
 (defclass ChatError [RuntimeError])
 
-(defn strip-thinking [#^ str content]
-  "Remove <think>...</think> blocks from content.
-  QwQ/Qwen does not always produce the opening tag."
-  (if content
-      (re.sub r"^(.*?)\s*</think>\s*" ""
-        (re.sub r"^<think>\s*(.*?)\s*</think>\s*" "" content :flags re.DOTALL)
-        :flags re.DOTALL)
-      content))
-
 (setv APIErrors (tuple [openai.APIConnectionError
                  openai.InternalServerError
                  openai.APIStatusError
@@ -143,23 +134,19 @@ Chat management functions.
   (let [api-key (.pop params "api_key" None)
         base-url (.pop params "api_base" None)
         client (openai.AsyncOpenAI :api-key api-key
-                                   :base-url base-url)
-        ;; Disable thinking/reasoning mode for reasoning models like Qwen3
-        extra-body {"chat_template_kwargs" {"enable_thinking" False}}]
+                                   :base-url base-url)]
     (if stream
         ;; Return async generator for streaming
         (client.chat.completions.create
           :messages (standard-roles messages)
           :stream True
-          :extra-body extra-body
           #** params)
         ;; Non-streaming: return full content
         (let [response (await
                          (client.chat.completions.create
                            :messages (standard-roles messages)
-                           :extra-body extra-body
                            #** params))]
-          (strip-thinking (. (. (first response.choices) message) content)))))
+          (. (. (first response.choices) message) content)))))
 
 (defn :async 
   [(retry :wait (wait-random-exponential :min 0.5 :max 10)
@@ -217,4 +204,4 @@ Chat management functions.
         (let [delta (. (first chunk.choices) delta)]
           (when delta.content
             (.append content delta.content)))))
-    (strip-thinking (.join "" content))))
+    (.join "" content)))
