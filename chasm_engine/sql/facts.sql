@@ -100,10 +100,13 @@ SELECT * FROM valid_facts WHERE source_type IN ('narrator', 'system');
 -- -----------------------------------------------------------------------------
 
 -- :name insert_fact
--- :doc Insert a new fact and return its ID
+-- :doc Insert a new fact
 INSERT INTO facts (subject, predicate, object, location, coords, timestamp, source, source_type, fact_type, confidence, expires_at)
-VALUES (:subject, :predicate, :object, :location, :coords, :timestamp, :source, :source_type, :fact_type, :confidence, :expires_at)
-RETURNING id;
+VALUES (:subject, :predicate, :object, :location, :coords, :timestamp, :source, :source_type, :fact_type, :confidence, :expires_at);
+
+-- :name get_last_fact_id
+-- :doc Get the last inserted fact ID
+SELECT last_insert_rowid() as id;
 
 -- :name get_fact_by_id
 -- :doc Get a single fact by ID
