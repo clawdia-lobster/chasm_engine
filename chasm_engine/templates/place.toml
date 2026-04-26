@@ -25,7 +25,17 @@ Now, generate a {length} description of the place.'''
 new = '''{context}
 Complete the template for a place you would want to explore, that's distinct from those nearby, but that's in keeping with the story's setting. Avoid adjectives used in nearby places, be interesting and imaginative.
 Example names would include: 'Residential Buildings', 'Junction', 'Inn', 'Architect's Office', 'Corner Shop', 'Palace', 'Nightclub', 'Small White House', 'Ship', 'Castle', 'Secret Cave', 'Bridge'.
-The name should have {seed} in the first few letters. Avoid numerals in the name. The place might be {place_type}.'''
+The name should have {seed} in the first few letters. Avoid numerals in the name. The place might be {place_type}.
+
+Respond with ONLY a JSON object in this exact format:
+```json
+{{
+    "name": "an imaginative and original place name",
+    "appearance": "a few keywords of description",
+    "atmosphere": "a few keywords",
+    "terrain": "a few keywords"
+}}
+```'''
 
 json = '''```json
 {{
