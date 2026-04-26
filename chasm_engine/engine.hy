@@ -589,10 +589,10 @@ The engine logic is expected to handle many players.
           (let [delta (. (first chunk.choices) delta)]
             (when delta.content
               (.append content delta.content)
-              (yield delta.content False)))))
+              (yield #(delta.content False))))))
       ;; Final chunk with trimmed result
       (let [full-text (trim-prose (.join "" content))]
-        (yield full-text True)))))
+        (yield #(full-text True))))))
 
 (defn consume-item [messages player item]
   "The character changes the narrative and the item based on the usage.
