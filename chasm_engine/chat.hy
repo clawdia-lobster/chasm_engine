@@ -11,7 +11,6 @@ Chat management functions.
 
 (import tiktoken)
 (import openai)
-(import anthropic)
 
 (import tenacity [retry retry-if-exception-type stop-after-attempt wait-random-exponential])
 
@@ -23,11 +22,7 @@ Chat management functions.
 (setv APIErrors (tuple [openai.APIConnectionError
                  openai.InternalServerError
                  openai.APIStatusError
-                 openai.APITimeoutError
-                 anthropic.APIConnectionError
-                 anthropic.InternalServerError
-                 anthropic.APIStatusError
-                 anthropic.APITimeoutError]))
+                 openai.APITimeoutError]))
 
 ;; Message functions
 ;; -----------------------------------------------------------------------------
@@ -157,24 +152,6 @@ Chat management functions.
                            #** params))]
           (. (. (first response.choices) message) content)))))
 
-(defn :async _anthropic [params messages]
-  "Use the Anthropic API.
-  The Anthropic Messages API requires max-tokens.
-  It also ccepts a top-level `system` parameter, not \"system\"
-  as an input message role."
-  (let [client (anthropic.AsyncAnthropic :api-key (.pop params "api_key"))
-        system-prompt (jn (lfor m messages
-                            :if (= (:role m) "system")
-                            (:content m)))
-        max-tokens (.pop params "max_tokens" 500) ; requires a default max-tokens
-        response (await
-                   (client.messages.create
-                     :system system-prompt
-                     :messages (standard-roles messages :roles ["user" "assistant"])
-                     :max-tokens max-tokens
-                     #** params))]
-    (. (first response.content) text)))
-
 (defn :async 
   [(retry :wait (wait-random-exponential :min 0.5 :max 10)
           :stop (stop-after-attempt 6)
@@ -182,7 +159,9 @@ Chat management functions.
   respond [messages [provider "backend"] #** kwargs]
   "Reply to a list of messages and return just content.
   The messages should already have the standard roles.
-  Use `providers.default` unless the `provider` arg is specified."
+  Uses `providers.default` unless the `provider` arg is specified.
+  
+  Note: 'openai' scheme means OpenAI-compatible API (vLLM, Ollama, etc.)."
   (let [conf (or (config "providers" provider) {})
         defaults {"api_key" "sk-dummy"
                   "max_tokens" (config "max_tokens")
@@ -191,10 +170,7 @@ Chat management functions.
         params (| defaults conf (or kwargs {}))
         api-scheme (.pop params "api_scheme")]
     (try
-      (match api-scheme
-             "openai"    (await (_openai params messages))
-             "anthropic" (await (_anthropic params messages))
-             _           (await (_openai params messages)))
+      (await (_openai params messages))
       (except [err [Exception]]
         (log.error f"Chat API exception ({api-scheme})" :exception err)
         (raise (ChatError (.join " " [api-scheme (str err)])))))))

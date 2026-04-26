@@ -70,15 +70,6 @@ Classify any new memory into [significant], [minor] or [forgettable] (note squar
 Use a brief few words, comma separated, for each attribute. Be concise and very specific.
 '''
 
-develop-lines = '''
-name: {name}
-appearance: {appearance}
-health: {health}
-emotions: {emotions}
-destination: {destination}
-objective: {objective}
-new_memory: [classification] - any significant or poignant thing worth remembering from the dialogue.
-'''
 
 develop-json = '''```json
 {{

@@ -3,7 +3,7 @@
 **Last Updated:** 2026-04-26
 **Branch:** nereus
 **Tests:** 26 passing
-**E2E Test:** WebSocket protocol verified (motd, online, spawn)
+**E2E Test:** WebSocket protocol verified (motd, online, spawn, parse)
 
 ## Architecture
 
@@ -43,8 +43,8 @@
 |--------|---------|--------|
 | `ws_server.hy` | WebSocket server (JSON-RPC 2.0) | ✅ Working |
 | `client.hy` | WebSocket client | ✅ Working |
-| `ptk_repl.hy` | Prompt-toolkit REPL | ⚠️ Incomplete |
-| `ptk_interface.hy` | PTK UI components | ⚠️ Incomplete |
+| `ptk_repl.hy` | Prompt-toolkit REPL | ✅ Working |
+| `ptk_interface.hy` | PTK UI components | ✅ Working |
 
 ## Protocol
 
@@ -101,13 +101,13 @@ websocket_url = "ws://localhost:8765"
 - SQL schema extracted to `sql/schema.sql`
 - Missing paren in `engine.hy`
 - Malformed import in `character.hy`
+- Forward reference issues in ws_server.hy (reordered function definitions)
+- Dict access patterns in ws_server.hy (using `.get()` for safe access)
 
 ## Known Issues
 
-1. **ptk_repl.hy incomplete** — TUI migration not finished (but functional)
-2. **No push access** — Commits ready but cannot push to GitHub
-3. **JWT key warning** — jwt_secret in server.toml should be 32+ bytes
-4. **spawn fails without LLM** — Expected if no LLM backend configured
+1. **JWT key warning** — jwt_secret in server.toml should be 32+ bytes
+2. **spawn fails without LLM** — Expected if no LLM backend configured
 
 ## Testing
 

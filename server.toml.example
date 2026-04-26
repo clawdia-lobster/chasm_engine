@@ -1,5 +1,8 @@
-listen = "tcp://*:25566"
 world = "worlds/generic-world-name"
+
+# WebSocket server configuration
+ws_host = "0.0.0.0"
+ws_port = 8080
 
 # params passed to the model are defined in their own section below
 # context_length is the context window of the model.

@@ -28,8 +28,6 @@ Functions that deal with characters.
 (defclass CharacterError [Exception])
 
 (def-fill-template character json system)
-(def-fill-template character lines system)
-;(def-fill-template character develop-lines develop-system)
 (def-fill-template character develop-json develop-system)
 (def-fill-template character score score-system)
 (def-fill-template character mentioned mentioned-system)
@@ -75,28 +73,6 @@ Functions that deal with characters.
     (except [e [Exception]]
       (log.error f"spawn failed for {name} at {coords}.")
       (log.error e))))
-
-(defn :async gen-lines [coords [name None]] ; -> Character or None
-  "Make up some plausible character based on a name."
-  (let [seed (choice alphabet)
-        name-str (or name f"the character (invent one whose first name begins with '{seed}')")
-        place (get-place coords)
-        place-name (if place place.name "a typical place in this world")
-        details (grep-attributes
-                  (await (character-lines
-                           :name name-str
-                           :place place-name
-                           :setting f"Story setting: {world}"))
-                  initial-character-attributes)
-        name (word-chars (or name (:name details "")))
-        objective (word-chars (:objective details ""))
-        name-dict (if name {"name" name} {})]
-    (log.info name)
-    (Character #** (| (._asdict default-character)
-                      details
-                      name-dict
-                      {"coords" coords
-                       "objective" objective}))))
 
 (defn :async gen-json [coords [name None]] ; -> Character or None
   "Make up some plausible character based on a name."

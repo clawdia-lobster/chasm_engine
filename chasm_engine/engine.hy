@@ -79,6 +79,33 @@ The engine logic is expected to handle many players.
 ;; API functions
 ;; -----------------------------------------------------------------------------
 
+;; Main engine loop
+;; -----------------------------------------------------------------------------
+
+(defn :async print-map [coords [compass False]]
+  "Get your bearings."
+  (if compass
+      (let [cx (:x coords)
+            cy (:y coords)
+            accessible-places (await (place.accessible coords :min-places 4))]
+        (jn
+          (lfor dy [1 0 -1]
+                (.join ""
+                       (lfor dx [-1 0 1]
+                         :setv nearby-place (place.get-offset-place coords dx dy)
+                         (cond (in nearby-place accessible-places) "• "
+                               (= 0 (+ (abs dx) (abs dy))) "+ "
+                               :else "  "))))))
+      (let [rooms (place.rooms coords :as-string False)]
+        (if rooms
+          (jnn
+            [f"***{(place.name coords)}***"
+             f"Rooms: {(.join ", " rooms)}"
+             f"*{(await (place.nearby-str coords))}*"])
+          (jnn
+            [f"***{(place.name coords)}***"
+             f"*{(await (place.nearby-str coords))}*"])))))
+
 (defn :async payload [narrative result player-name]
   "What the client expects."
   (let [player (get-character player-name)
@@ -174,6 +201,22 @@ The engine logic is expected to handle many players.
             (+ (.join ", " chars-online) ".")
             "Nobody online.")
         chars-online)))
+
+(defn :async move-characters [messages]
+  "Move characters to their targets."
+  (for [c (map get-character characters)]
+    (when c.npc ; don't randomly move a player, only NPCs
+      ; don't test for accessibility
+      (let [ps (await (place.nearby c.coords :place True :list-inaccessible True))
+            pnames (lfor p ps p.name)
+            pname (fuzzy-in c.destination pnames)]
+        (when (and pname
+                   (dice 16)
+                   ; don't move them if they've been mentioned in the last move or two
+                   (not (in c.name (str (cut messages -4 None)))))
+          (let [p (first (lfor p ps :if (= p.name pname) p))]
+            (log.info f"{c.name} -> {p.name}")
+            (character.move c p.coords)))))))
 
 (defn :async parse [player-name line #* args #** kwargs] ; -> response
   "Process the player's input and return the whole visible state."
@@ -490,50 +533,11 @@ The engine logic is expected to handle many players.
   ; How is it being used?
   ; What happens to the item?
 
-(defn :async move-characters [messages]
-  "Move characters to their targets."
-  (for [c (map get-character characters)]
-    (when c.npc ; don't randomly move a player, only NPCs
-      ; don't test for accessibility
-      (let [ps (await (place.nearby c.coords :place True :list-inaccessible True))
-            pnames (lfor p ps p.name)
-            pname (fuzzy-in c.destination pnames)]
-        (when (and pname
-                   (dice 16)
-                   ; don't move them if they've been mentioned in the last move or two
-                   (not (in c.name (str (cut messages -4 None)))))
-          (let [p (first (lfor p ps :if (= p.name pname) p))]
-            (log.info f"{c.name} -> {p.name}")
-            (character.move c p.coords)))))))
-
 ;; Main engine loop
 ;; -----------------------------------------------------------------------------
-
-(defn :async print-map [coords [compass False]]
-  "Get your bearings."
-  (if compass
-      (let [cx (:x coords)
-            cy (:y coords)
-            accessible-places (await (place.accessible coords :min-places 4))]
-        (jn
-          (lfor dy [1 0 -1]
-                (.join ""
-                       (lfor dx [-1 0 1]
-                         :setv nearby-place (place.get-offset-place coords dx dy)
-                         (cond (in nearby-place accessible-places) "• "
-                               (= 0 (+ (abs dx) (abs dy))) "+ "
-                               :else "  "))))))
-      (let [rooms (place.rooms coords :as-string False)]
-        (if rooms
-          (jnn
-            [f"***{(place.name coords)}***"
-             f"Rooms: {(.join ", " rooms)}"
-             f"*{(await (place.nearby-str coords))}*"])
-          (jnn
-            [f"***{(place.name coords)}***"
-             f"*{(await (place.nearby-str coords))}*"]))))))
 
 (defn spy [char-name]
   (-> (get-character char-name)
       (._asdict) 
       (json.dumps :indent 4)))
+)

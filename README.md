@@ -5,7 +5,7 @@ Chasm is a ***generative text adventure game / interactive fiction*** in a
 scenes and characters as you play. Unlike simply role-playing with a chatbot,
 important state mutates and persists (locations, characters, dialogue etc.)
 
-**This is the server software that clients connect to over the network.**
+**This is the server software that clients connect to over WebSocket.**
 **It runs the 'world'.**
 To play, you need [the client](https://github.com/atisharma/chasm).
 
@@ -70,7 +70,10 @@ $ <activate your venv>
 $ pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 # to install the server
 $ pip install -U git+https://github.com/atisharma/chasm_engine
-# then edit server.toml or a copy
+# copy and edit the example config
+$ cp server.toml.example server.toml
+$ nano server.toml
+# then run the server
 $ chasm -c server.toml serve
 ```
 
@@ -80,9 +83,8 @@ version.
 
 ### Configuring a world on the server
 
-Place a text file named after your world in a subdirectory called "worlds" (see
-the config file `server.toml` - copy the `server.toml.example`) and adjust as
-necessary. The `context_length` is the context length of the model, which
+Place a text file named after your world in a subdirectory called "worlds" (copy
+`server.toml.example` to `server.toml`) and adjust as necessary. The `context_length` is the context length of the model, which
 should match what the API expects. **Check you have enough VRAM and your model
 works with the context length if you're running a local model. If you are
 getting garbage, it's probably your model.**
@@ -91,6 +93,8 @@ The world information (text file) should contain two or three sentences about
 the world that won't change (not specific places, characters or items), such as
 general location or the period in history. They are universal and invariant
 context for your journey.
+
+The server listens on `ws_host` (default: 0.0.0.0) and `ws_port` (default: 8080).
 
 For example, set `world = "worlds/New York"` in your config file
 and create a text file `worlds/New York.txt` with the contents
