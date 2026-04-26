@@ -196,7 +196,11 @@ The engine logic is expected to handle many players.
 
 (defn online [[long False] [seconds 600]]
   "List of player-characters online since (600) seconds ago."
-  (let [chars-online (lfor a (get-accounts) :if (< (- (time) (float (:last-verified a))) seconds) (:name a))]
+  ; Iterate accounts.items() so we get the name from the dict key,
+  ; since older accounts may not store :name in the value dict.
+  (let [chars-online (lfor [player-key a] (.items accounts)
+                            :if (< (- (time) (float (:last-verified a Inf))) seconds)
+                            (or (:name a None) player-key))]
     (if long
         (if chars-online
             (+ (.join ", " chars-online) ".")
