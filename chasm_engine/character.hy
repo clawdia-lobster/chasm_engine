@@ -31,6 +31,7 @@ Functions that deal with characters.
 (def-fill-template character develop-json develop-system)
 (def-fill-template character score score-system)
 (def-fill-template character mentioned mentioned-system)
+(def-fill-template character backstory backstory-system)
 
 
 (defn is-valid-key [s]
@@ -240,22 +241,13 @@ Functions that deal with characters.
 
 (defn :async generate-backstory [char-name existing-chars place-name]
   "Generate a rich backstory for an NPC with connections to existing characters."
-  (let [existing-names (.join ", " (lfor c existing-chars c.name))
-        prompt (+ "You are a character designer for a text adventure game.\n"
-                  "Generate a rich backstory for a new NPC.\n\n"
-                  f"NPC name: {char-name}\n"
-                  f"Location: {place-name}\n"
-                  f"Existing characters nearby: {existing-names}\n\n"
-                  "Create a backstory that:\n"
-                  "- Explains why they are here\n"
-                  "- Connects them to at least one existing character (if any)\n"
-                  "- Gives them a secret or hidden motivation\n"
-                  "- Fits the world theme\n\n"
-                  "Reply with JSON only:\n"
-                  "{\"backstory\": \"...\", \"secret\": \"...\", \"connections\": [{\"name\": \"...\", \"relationship\": \"...\"}], \"hidden_objective\": \"...\"}")]
+  (let [existing-names (.join ", " (lfor c existing-chars c.name))]
     (try
-      (let [response (await (respond [(system prompt)] :provider "backend"))
-            result (extract-json-unwrap response)]
+      (let [result (extract-json-unwrap
+                     (await (character-backstory
+                              :char-name char-name
+                              :place-name place-name
+                              :existing-names existing-names)))]
         (when result
           (log.info f"Generated backstory for {char-name}")
           result))

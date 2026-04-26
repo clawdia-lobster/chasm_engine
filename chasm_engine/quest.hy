@@ -12,6 +12,8 @@ Design: docs/QUEST_SYSTEM.md
 (require hyrule.control [unless])
 (import hyrule [inc])
 
+(require chasm_engine.instructions [def-fill-template])
+
 (import glob)
 (import json)
 (import time [time])
@@ -22,6 +24,10 @@ Design: docs/QUEST_SYSTEM.md
 (import chasm_engine.state [path world get-table character-key])
 (import chasm_engine.chat [respond truncate system user])
 
+;; * Template Functions
+;; -----------------------------------------------------------------------------
+
+(def-fill-template quest followup followup-system)
 
 ;; * Tables
 ;; -----------------------------------------------------------------------------
@@ -303,26 +309,17 @@ Has the condition been met? Reply with exactly one word: YES or NO.")
 
 (defn :async generate-followup-quest [completed-quest narrative]
   "Generate a follow-up quest based on a completed quest and recent narrative."
-  (let [prompt (+ "You are a quest designer for a text adventure game.\n"
-                  "Generate a follow-up quest based on the completed quest and recent narrative.\n\n"
-                  f"Completed quest: {(:name completed-quest)}\n"
-                  f"Completed quest description: {(:description completed-quest)}\n\n"
-                  f"Recent narrative:\n{narrative}\n\n"
-                  "Generate a new quest that:\n"
-                  "- Follows logically from the completed quest\n"
-                  "- References events or characters from the narrative\n"
-                  "- Has a clear goal and stages\n"
-                  "- Is interesting and engaging\n\n"
-                  "Reply with JSON only:\n"
-                  "{\"id\": \"quest-id\", \"name\": \"Quest Name\", \"description\": \"...\", \"stages\": [{\"condition\": \"...\", \"description\": \"...\"}], \"rewards\": {\"score\": 10}}")]
-    (try
-      (let [response (await (respond [(system prompt)] :provider "backend"))
-            result (extract-json-unwrap response)]
-        (when (and result (:id result) (:name result))
-          (log.info f"Generated follow-up quest: {(:name result)}")
-          result))
-      (except [Exception]
-        None))))
+  (try
+    (let [result (extract-json-unwrap
+                   (await (quest-followup
+                            :quest-name (:name completed-quest)
+                            :quest-description (:description completed-quest)
+                            :narrative narrative)))]
+      (when (and result (:id result) (:name result))
+        (log.info f"Generated follow-up quest: {(:name result)}")
+        result))
+    (except [Exception]
+      None)))
 
 (defn :async check-and-generate-followups [char-name narrative]
   "Check for recently completed quests and generate follow-ups."
