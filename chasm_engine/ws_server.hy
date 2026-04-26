@@ -220,10 +220,11 @@ Implements the Chasm WebSocket Protocol v1.0.
                     } None)))))))))
 
 
-(defn :async handle-parse [params auth]
-  "Handle parse method."
+(defn :async handle-parse [params auth websocket]
+  "Handle parse method. Supports streaming via stream=true parameter."
   (let [token (.get auth "session_token" None)
-        input (.get params "input" "")]
+        input (.get params "input" "")
+        stream (.get params "stream" False)]
     (cond
       (not token)
         (make-error ERR-SESSION-NOT-FOUND "Missing session token")
@@ -238,26 +239,33 @@ Implements the Chasm WebSocket Protocol v1.0.
         (make-error ERR-RATE-LIMIT "Rate limit exceeded")
       
       True
-        (let [player-name (verify-token token)
-              result (await (engine.parse player-name input))
-              player-data (:player result)]
+        (let [player-name (verify-token token)]
           (touch-session token)
-          (make-response {
-            "message" (:result result)
-            "player" {
-              "name" player-name
-              "location" (:place player-data)
-              "coords" (:coords result)
-              "inventory" (:inventory player-data [])
-              "score" (:score player-data 0)
-              "turns" (:turns player-data 0)
-            }
-            "place" {
-              "name" (:place player-data)
-              "exits" (:exits result [])
-            }
-            "compass" (:compass player-data "")
-          } None)))))
+          (if stream
+            ; Streaming path
+            (let [send-notification (fn [method data]
+                                     (await (.send websocket
+                                                   (json.dumps (make-notification method data)))))]
+              (await (engine.parse-stream player-name input websocket send-notification)))
+            ; Non-streaming path
+            (let [result (await (engine.parse player-name input))
+                  player-data (:player result)]
+              (make-response {
+                "message" (:result result)
+                "player" {
+                  "name" player-name
+                  "location" (:place player-data)
+                  "coords" (:coords result)
+                  "inventory" (:inventory player-data [])
+                  "score" (:score player-data 0)
+                  "turns" (:turns player-data 0)
+                }
+                "place" {
+                  "name" (:place player-data)
+                  "exits" (:exits result [])
+                }
+                "compass" (:compass player-data "")
+              } None)))))))
 
 
 (defn handle-status [auth]
@@ -332,7 +340,7 @@ Implements the Chasm WebSocket Protocol v1.0.
           (await (handle-spawn params websocket))
         
         (= method "parse")
-          (await (handle-parse params auth))
+          (await (handle-parse params auth websocket))
         
         (= method "status")
           (handle-status auth)

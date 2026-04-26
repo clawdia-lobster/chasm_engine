@@ -269,6 +269,47 @@ The engine logic is expected to handle many players.
     (log.debug f"-> {result}")
     ; always return the most recent state
     (await (payload narrative result player-name))))
+
+(defn :async parse-stream [player-name line websocket send-notification #* args #** kwargs]
+  "Process player input with streaming narrative. Yields chunks via callback.
+  Returns final payload when complete."
+  (log.info f"{player-name}: {line} (streaming)")
+  (invalidate-context-cache player-name)
+  (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
+        player (update-character _player :npc False)
+        narrative (get-narrative player-name)
+        messages (truncate (standard-roles narrative)
+                           :spare-length (+ (token-length world) (config "max_tokens")))
+        user-msg (user line)
+        ; Check if this is a narrative command (streaming applicable)
+        is-narrative (and line
+                         (not (is-quit line))
+                         (not (parse-take line))
+                         (not (parse-drop line))
+                         (not (parse-give line))
+                         (not (.startswith line "/"))
+                         (not (is-look line))
+                         (not (parse-go line)))]
+    (if is-narrative
+      ; Streaming path for narrative commands
+      (do
+        (let [full-text []]
+          (async-for [chunk done (narrate-stream (append user-msg messages) player)]
+            (if done
+              ; Final chunk - send complete notification
+              (await (send-notification "stream_complete" {"text" chunk}))
+              ; Intermediate chunk
+              (do
+                (.append full-text chunk)
+                (await (send-notification "stream_chunk" {"text" chunk})))))
+          ; Update narrative with full text
+          (let [result (assistant (.join "" full-text))]
+            (.extend narrative [user-msg result])
+            (set-narrative (cut narrative -100 None) player-name)
+            (await (move-characters narrative))
+            (await (payload narrative result player-name)))))
+      ; Non-streaming path for other commands
+      (await (parse player-name line #* args #** kwargs)))))
       
 ;; World functions (background tasks)
 ;; -----------------------------------------------------------------------------
@@ -525,6 +566,33 @@ The engine logic is expected to handle many players.
         (await)
         (trim-prose)
         (or "")))) ; ensure it returns a string, never None.
+
+(defn :async narrate-stream [messages player]
+  "Stream narrative chunks as they arrive.
+  Yields (chunk, done) tuples where done=True on final chunk."
+  (let [here (. (get-place player.coords) name)
+        context (jnn [(jn (plot.recall-points (plot.news)))
+                      (await (player-context player))
+                      (memories player)])
+        narrative-prompt (narrative "system-prompt"
+                           :player player.name
+                           :context context
+                           :here here)]
+    (.add develop-queue player.name)
+    (let [stream (await (respond-stream
+                         (-> [(system narrative-prompt) #* messages]
+                             (truncate))
+                         :provider "narrator"))
+          content []]
+      (async-for [chunk stream]
+        (when (and chunk (first chunk.choices))
+          (let [delta (. (first chunk.choices) delta)]
+            (when delta.content
+              (.append content delta.content)
+              (yield delta.content False)))))
+      ;; Final chunk with trimmed result
+      (let [full-text (trim-prose (.join "" content))]
+        (yield full-text True)))))
 
 (defn consume-item [messages player item]
   "The character changes the narrative and the item based on the usage.
