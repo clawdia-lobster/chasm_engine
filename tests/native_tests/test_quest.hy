@@ -38,10 +38,10 @@
 (defn test-eligible [sample_quests quest_defs_reset]
   "Test quest eligibility."
   ;; Arthur should be eligible for test-quest (no prereqs)
-  (assert (eligible? "Arthur" "test-quest"))
+  (assert (is-eligible "Arthur" "test-quest"))
 
   ;; Arthur should NOT be eligible for chain-quest (needs test-quest first)
-  (assert (not (eligible? "Arthur" "chain-quest"))))
+  (assert (not (is-eligible "Arthur" "chain-quest"))))
 
 (defn test-start-quest [sample_quests quest_defs_reset]
   "Test starting a quest."
@@ -53,7 +53,7 @@
     (assert (isinstance (:started_at progress) float)))
 
   ;; Should not be eligible anymore (already started)
-  (assert (not (eligible? "Arthur" "test-quest"))))
+  (assert (not (is-eligible "Arthur" "test-quest"))))
 
 (defn test-active-quests [sample_quests quest_defs_reset]
   "Test retrieving active quests."
@@ -80,19 +80,19 @@
     (assert (= (len completed) 1)))
 
   ;; Now should be eligible for chain-quest
-  (assert (eligible? "Arthur" "chain-quest")))
+  (assert (is-eligible "Arthur" "chain-quest")))
 
 (defn test-prerequisites-met [sample_quests quest_defs_reset]
   "Test prerequisite checking."
   (let [chain-q (get-quest "chain-quest")]
     ;; Prerequisites not met initially
-    (assert (not (prerequisites-met? "Arthur" chain-q)))
+    (assert (not (has-prerequisites-met "Arthur" chain-q)))
 
     ;; Complete the prerequisite
     (set-progress "Arthur" "test-quest" :completed_at 1234567890.0)
 
     ;; Now prerequisites should be met
-    (assert (prerequisites-met? "Arthur" chain-q))))
+    (assert (has-prerequisites-met "Arthur" chain-q))))
 
 (defn test-abandon-quest [sample_quests quest_defs_reset]
   "Test abandoning a quest."

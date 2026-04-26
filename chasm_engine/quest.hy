@@ -130,18 +130,18 @@ Design: docs/QUEST_SYSTEM.md
 ;; * Prerequisite & Eligibility
 ;; -----------------------------------------------------------------------------
 
-(defn prerequisites-met? [char-name quest]
+(defn has-prerequisites-met [char-name quest]
   "True if the character has completed all prerequisites."
   (let [reqs (set (:prerequisites quest []))
         done (completed-quest-ids char-name)]
     (reqs.issubset done)))
 
 
-(defn eligible? [char-name quest-id]
+(defn is-eligible [char-name quest-id]
   "True if character can start this quest (not started, prereqs met)."
   (let [q (get-quest quest-id)]
     (and q
-         (prerequisites-met? char-name q)
+         (has-prerequisites-met char-name q)
          (is None (get-progress char-name quest-id)))))
 
 
@@ -154,7 +154,7 @@ Design: docs/QUEST_SYSTEM.md
     (unless q
       (log.warn f"quest/start-quest: unknown quest {quest-id}")
       (return None))
-    (unless (eligible? char-name quest-id)
+    (unless (is-eligible char-name quest-id)
       (log.debug f"quest/start-quest: {char-name} not eligible for {quest-id}")
       (return None))
     (log.info f"{char-name} started quest '{(:name q quest-id)}'")
@@ -349,7 +349,7 @@ Has the condition been met? Reply with exactly one word: YES or NO.")
 (defn available-for [char-name]
   "Quest defs a character can start right now."
   (lfor q (all-quests)
-        :if (eligible? char-name (:id q ""))
+        :if (is-eligible char-name (:id q ""))
         q))
 
 

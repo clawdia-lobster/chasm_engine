@@ -16,8 +16,8 @@
   (for [s (:stages q [])]
     (print f"  - {(:id s)}: {(:condition s)}")))
 
-(let [elig-main (eligible? "Arthur" "end-of-universe")
-      elig-chain (eligible? "Arthur" "hitchhikers-guide")]
+(let [elig-main (is-eligible "Arthur" "end-of-universe")
+      elig-chain (is-eligible "Arthur" "hitchhikers-guide")]
   (print f"Eligible end-of-universe: {elig-main}")
   (print f"Eligible hitchhikers-guide (needs prereq): {elig-chain}"))
 

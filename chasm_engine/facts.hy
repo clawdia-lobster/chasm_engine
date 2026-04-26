@@ -12,7 +12,6 @@ Replaces the fragile ChromaDB-based memory system.
 (import pathlib [Path])
 
 (import chasm_engine [log])
-(import chasm_engine.lib [config])
 (import chasm_engine.state [path])
 
 
