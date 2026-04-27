@@ -83,16 +83,21 @@ Functions that manage place.
 
 (defn :async gen-json [nearby-places]
   "Make up a place from its neighbours."
-  (let [details (extract-json-unwrap
-                  (await (place-json
+  (let [raw-response (await (place-json
                            :context f"The story's setting is: {world}\nNearby places: {nearby-places}"
                            :seed (choice alphanumeric)
-                           :place-type (choice place-types))))]
-    (when (and details (:name details None))
-      {"name" (capwords (re.sub r"^[Tt]he " "" (:name details)))
-       "appearance" (:appearance details None)
-       "atmosphere" (:atmosphere details None)
-       "terrain" (:terrain details None)})))
+                           :place-type (choice place-types)))
+        details (extract-json-unwrap raw-response)]
+    (if (and details (:name details None))
+        {"name" (capwords (re.sub r"^[Tt]he " "" (:name details)))
+         "appearance" (:appearance details None)
+         "atmosphere" (:atmosphere details None)
+         "terrain" (:terrain details None)}
+        (do
+          (let [resp-len (if raw-response (len raw-response) 0)]
+            (log.error f"gen-json failed. Raw response length: {resp-len}")
+            (log.debug f"Raw response: {raw-response}"))
+          None))))
 
 (defn :async gen-rooms [place-dict]
   "Make up some rooms for a place."

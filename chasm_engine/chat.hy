@@ -145,8 +145,15 @@ Chat management functions.
         (let [response (await
                          (client.chat.completions.create
                            :messages (standard-roles messages)
-                           #** params))]
-          (. (. (first response.choices) message) content)))))
+                           #** params))
+              msg (. (first response.choices) message)
+              content msg.content]
+          ;; For reasoning models (qwen3.6, etc.), content may be None
+          ;; while the actual output is in the reasoning field.
+          ;; Fall back to reasoning if content is empty.
+          (or content
+              (getattr msg "reasoning" None)
+              (getattr msg "reasoning_content" None))))))
 
 (defn :async 
   [(retry :wait (wait-random-exponential :min 0.5 :max 10)
