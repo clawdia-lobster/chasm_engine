@@ -126,9 +126,6 @@ Chat management functions.
 ;; Remote API calls
 ;; -----------------------------------------------------------------------------
 
-;; TODO hyjinx llm async
-;; TODO streaming -- but how to stream to client?
-
 (defn :async _openai [params messages [stream False]]
   "Openai-compatible API calls: https://platform.openai.com/docs/api-reference"
   (let [api-key (.pop params "api_key" None)

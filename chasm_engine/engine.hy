@@ -13,7 +13,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine [log])
 
 (import chasm-engine.lib *)
-(import chasm-engine [place item character plot quest world_author memory_facts])
+(import chasm-engine [place item character plot quest world_author memory_facts intent])
 (import chasm-engine.types [Coords])
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
@@ -35,9 +35,6 @@ The engine logic is expected to handle many players.
                            msg user assistant system])
 
 (require chasm-engine.instructions [deftemplate def-fill-template])
-
-;; is it circular import for summaries? Maybe OK as it's a macro?
-(import chasm-engine.summaries [summary-msgs-topic summary-text-topic summary-msgs-points])
 
 
 ;; * Turn-level context cache
@@ -240,12 +237,8 @@ The engine logic is expected to handle many players.
         user-msg (user line)
         result (try
                  (cond
-                   ;; responses as info / error
+                   ;; Fast path: explicit commands (starting with /)
                    (is-quit line) (do (update-character player :npc True) (msg "QUIT" "QUIT"))
-                   (parse-take line) (info (item.fuzzy-claim (parse-take line) player))
-                   (parse-drop line) (info (item.fuzzy-drop (parse-drop line) player))
-                   (parse-give line) (info (item.fuzzy-give player #* (parse-give line)))
-
                    (.startswith line "/help") (info (help-str))
                    (.startswith line "/hint") (info (await (hint messages player line)))
                    (.startswith line "/hist") (msg "history" "The story so far...")
@@ -253,17 +246,16 @@ The engine logic is expected to handle many players.
                    (.startswith line "/exits") (msg (await (print-map player.coords)))
                    (.startswith line "/online") (info (online :long True))
                    (.startswith line "/quests") (info (quest-status player.name))
-                   ;(.startswith line "/characters") (info (or (character.describe-at player.coords :exclude player.name) "Nobody interesting here but you.")) ; for debugging
-                   ;(.startswith line "/items") (info (item.describe-at player.coords)) ; for debugging
-                   ;(.startswith line "/what-if") (info (await (narrate (append (user (last (.partition line))) messages) player))) ; for debugging
-
-                   ;; responses as assistant
-                   (is-look line) (assistant (await (place.describe player :messages messages :length "short")))
-                   (parse-go line) (assistant (await (move (append user-msg messages) player)))
-                   ;(parse-talk line) (assistant (converse (append user-msg messages) player)) ; this one needs thinking about
+                   (.startswith line "/take") (info (item.fuzzy-claim (parse-take line) player))
+                   (.startswith line "/drop") (info (item.fuzzy-drop (parse-drop line) player))
+                   (.startswith line "/give") (info (item.fuzzy-give player #* (parse-give line)))
+                   (.startswith line "/l") (assistant (await (place.describe player :messages messages :length "short")))
+                   (.startswith line "/go") (assistant (await (move (append user-msg messages) player)))
+                   ;; Intent-based path for natural language
                    (is-command line) (let [u-msg (user (get line (slice 1 None)))]
-                                     (assistant (await (narrate (append u-msg messages) player))))
-                   line (assistant (await (narrate (append user-msg messages) player))))
+                                       (assistant (await (narrate (append u-msg messages) player))))
+                   ;; Natural language: use intent classification
+                   line (await (parse-with-intent line player messages)))
                  (except [err [ChatError]]
                    (log.error "Empty reply" :exception err)
                    (info f"There was no reply."))
@@ -452,6 +444,40 @@ The engine logic is expected to handle many players.
           (= cmd "say") (re.sub "^to " "" (sstrip char))
           (= cmd "tell") (sstrip char)
           (= cmd "ask") (sstrip char)))))
+
+(defn :async parse-with-intent [line player messages]
+  "Parse natural language using LLM intent classification.
+  Returns result dict suitable for engine processing."
+  (let [context {"location" (place.name player.coords)
+                 "items-here" (item.describe-at player.coords)
+                 "characters-here" (character.describe-at player.coords :exclude player.name)
+                 "nearby" (await (place.nearby-str player.coords))}
+        parsed (await (intent.parse-command line player context))
+        action (:action parsed "say")]
+    (match action
+      "move" (let [dirn (:direction parsed)]
+               (if dirn
+                   (assistant (await (move (append (user line) messages) player)))
+                   (info "Where do you want to go?")))
+      "take" (let [obj (:item parsed)]
+               (if obj
+                   (info (item.fuzzy-claim obj player))
+                   (info "What do you want to take?")))
+      "drop" (let [obj (:item parsed)]
+                (if obj
+                    (info (item.fuzzy-drop obj player))
+                    (info "What do you want to drop?")))
+      "give" (let [obj (:item parsed)
+                    recip (:recipient parsed)]
+               (if (and obj recip)
+                   (info (item.fuzzy-give player obj recip))
+                   (info "Give what to whom?")))
+      "look" (assistant (await (place.describe player :messages messages :length "short")))
+      "help" (info (help-str))
+      "quests" (info (quest-status player.name))
+      "quit" (do (update-character player :npc True) (msg "QUIT" "QUIT"))
+      ;; Default: narrate
+      _ (assistant (await (narrate (append (user line) messages) player))))))
 
 ;; -----------------------------------------------------------------------------
 

@@ -1,0 +1,82 @@
+# Chasm Code Quality Plan
+
+## Summary
+8 issues identified, 5 resolved, 3 remaining.
+
+---
+
+## Completed ✅
+
+### 1. Check engine FIXMEs
+**Result:** 2 FIXMEs found, both already tracked in ISSUES.md.
+- `engine.hy:617` - consume-item not written → ISSUES.md #8
+- `place.hy:120` - place generation flaky → ISSUES.md #7
+
+### 2. Tidy solved TODOs
+**Result:** Removed obsolete streaming TODO (streaming is implemented).
+
+### 3. Remove dead code
+**Result:**
+- Removed unused `summary-*` imports from engine.hy
+- Removed `moderation.hy` (stubs, never used)
+- Noted: `edit.hy` unused but may be useful for admin REPL
+
+### 4. Extract world_author prompts
+**Result:** Created `templates/world_author.toml` with 4 prompts.
+**Remaining:** Wire up templates in `world_author.hy`.
+
+---
+
+## In Progress 🔄
+
+### 5. Wire up intent.hy
+**Issue:** `intent.hy` exists with LLM-based intent classification but is not imported or used in `engine.parse`. ROADMAP says "resolved" but code not connected.
+
+**Plan:**
+1. Import `intent.hy` in `engine.hy`
+2. Replace manual `parse-*` functions with `classify-intent` call
+3. Map intent results to existing handlers
+4. Test with existing commands
+
+**Complexity:** Medium (need to preserve existing behaviour)
+
+### 6. Improve chat.truncate
+**Issue:** Current approach removes oldest messages with no intelligence.
+
+**Plan:**
+1. Wire up `summaries.hy` templates
+2. Implement sliding window + summary for older context
+3. Keep recent messages verbatim, summarize older ones
+
+**Complexity:** Medium-High (requires testing)
+
+### 7. Refactor engine.develop
+**Issue:** Does 5 things, not thread-safe, uses global queue.
+
+**Plan:**
+1. Extract `extract-plot-points()`
+2. Extract `check-quest-progress()`
+3. Extract `run-world-author()`
+4. Extract `develop-characters-at()`
+5. Extract `spawn-npcs-if-needed()`
+6. Make thread-safe (remove global queue)
+
+**Complexity:** High (architectural change)
+
+---
+
+## Deferred ⏸️
+
+### 8. Clarify place/rooms structure
+**Issue:** Grid → Place → Rooms (strings) hierarchy is confusing.
+
+**Recommendation:** Document intended use case or simplify.
+**Why deferred:** Architectural decision, needs user input on game design direction.
+
+---
+
+## Execution Order
+
+1. **Wire up intent.hy** - Most impactful, resolves disconnect between docs and code
+2. **Improve chat.truncate** - Quality of life improvement
+3. **Refactor engine.develop** - Larger change, do after intent.hy is stable
