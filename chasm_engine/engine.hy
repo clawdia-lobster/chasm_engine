@@ -26,8 +26,7 @@ The engine logic is expected to handle many players.
                             get-account update-account get-accounts
                             get-narrative set-narrative])
 
-(import chasm-engine.chat [APIErrors
-                           ChatError
+(import chasm-engine.chat [ChatError
                            respond
                            msg->dlg msgs->dlg
                            truncate standard-roles
@@ -458,15 +457,7 @@ The engine logic is expected to handle many players.
   "Are you trying to talk to another character?"
   (let [[_cmd _ char] (.partition line " ")
         cmd (.lower _cmd)]
-    (when (.startswith cmd "/talk") (sstrip char)
-      #_(
-          (= cmd "talk") (re.sub "^to " "" (sstrip char))
-          (= cmd "talk") (re.sub "^with " "" (sstrip char))
-          (= cmd "chat") (re.sub "^to " "" (sstrip char))
-          (= cmd "chat") (re.sub "^with " "" (sstrip char))
-          (= cmd "say") (re.sub "^to " "" (sstrip char))
-          (= cmd "tell") (sstrip char)
-          (= cmd "ask") (sstrip char)))))
+    (when (.startswith cmd "/talk") (sstrip char))))
 
 (defn :async parse-with-intent [line player messages]
   "Parse natural language using LLM intent classification.
