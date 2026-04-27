@@ -18,7 +18,8 @@ Functions that deal with characters.
 (import chasm_engine.types [Coords Character Item is-at
                             mutable-character-attributes
                             initial-character-attributes])
-(import chasm_engine [place memory_facts])
+(import chasm_engine [place])
+(import chasm_engine.facts [add-fact query-facts recent-facts])
 
 (import chasm_engine.state [world
                             get-place
@@ -198,21 +199,30 @@ Functions that deal with characters.
                (not (in "significant or poignant thing worth remembering from this dialogue" new-memory))
                (not (in "[forgettable]" new-memory))
                (not (in "[classification]" new-memory)))
-      (memory_facts.add (character-key character.name)
-                  {"character" character.name
-                   "coords" (str character.coords)
-                   "place" (place.name character.coords)
-                   "time" f"{(time):015.2f}"
-                   "classification" (.lower (first (.groups mem-class)))}
-                  (first (.groups mem-point))))))
+      (add-fact (character-key character.name) "remembers" (first (.groups mem-point))
+                :source character.name
+                :source-type "character"
+                :location (place.name character.coords)
+                :coords (str character.coords)
+                :fact-type (.lower (first (.groups mem-class)))
+                :confidence 1.0
+                :origin-type "memory"
+                :origin-data new-memory))))
 
 (defn recall [character text [n 6] [class "significant"]]
   "Recall memories of a character. Pass `class=None` for all memories."
-  (first
-    (:documents (memory_facts.query (character-key character.name)
-                              :text text
-                              :n n
-                              :where (when class {"classification" class})))))
+  (let [results (query-facts :source (character-key character.name)
+                             :text text
+                             :limit n)
+        ;; Filter by classification if specified
+        filtered (if class
+                    (lfor r results
+                          :if (= (:fact-type r None) class)
+                          r)
+                    results)
+        ;; Extract just the text (object field contains the memory)
+        documents (lfor r filtered (:object r))]
+    documents))
 
 (defn :async get-new [messages player]
   "Are any new or existing characters mentioned in the messages?

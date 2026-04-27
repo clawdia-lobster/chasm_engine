@@ -19,7 +19,8 @@ Develop the plot / world events
 
 (import chasm_engine [log])
 
-(import chasm_engine [place character memory_facts])
+(import chasm_engine [place character])
+(import chasm_engine.facts [add-fact query-facts recent-facts])
 (import chasm_engine.state [world])
 (import chasm_engine.chat [truncate respond
                            system user
@@ -35,20 +36,38 @@ Develop the plot / world events
  "Up-to-date info about the universe."
  (.join "\n"
         [f"It is {(.strftime (datetime.now timezone.utc) "%H:%M, %a %d %h")}."
-         #* (recent :where {"classification" "major"})]))
+         #* (recent-facts :fact-type "major" :limit 5)]))
 
 (defn recent [[n 5] [where None]]
   "Return `n` recent memories filtered by `where` (e.g. `{\"classification\" \"major\"}"
-  (:documents (memory_facts.recent "narrator" :n n :where where)))
+  (let [results (query-facts :source "narrator" :limit (* n 2))
+        ;; Filter by classification if specified
+        filtered (if where
+                    (lfor r results
+                          :if (= (:fact-type r None) (:classification where None))
+                          r)
+                    results)
+        ;; Sort by timestamp descending, take n
+        sorted-results (cut (sorted filtered :key (fn [r] (:timestamp r 0)) :reverse True) 0 n)
+        ;; Extract just the text (object field contains the memory)
+        documents (lfor r sorted-results (:object r))]
+    documents))
 
 (defn recall-points [text [n 6] [class "major"]]
   "Recall the important plot points relating to `text`
   (the player, story thread, characters present, etc.)."
-  (first
-    (:documents (memory_facts.query "narrator"
-                              :text text
-                              :n n
-                              :where (when class {"classification" class})))))
+  (let [results (query-facts :source "narrator"
+                             :text text
+                             :limit n)
+        ;; Filter by classification if specified
+        filtered (if class
+                    (lfor r results
+                          :if (= (:fact-type r None) class)
+                          r)
+                    results)
+        ;; Extract just the text (object field contains the memory)
+        documents (lfor r filtered (:object r))]
+    documents))
 
 (defn :async extract-point [messages player]
   "Scan the recent conversation for plot points and insert them into the record."
@@ -71,7 +90,13 @@ Develop the plot / world events
                   "classification" (.lower (first (classification.groups)))}
             points (point.groups)]
         (for [pt points]
-          (memory_facts.add "narrator"
-                      :metadata meta
-                      :text f"{pt}"))))))
+          (add-fact "narrator" "plot-point" pt
+                    :source "narrator"
+                    :source-type "narrator"
+                    :location (:place meta)
+                    :coords (:coords meta)
+                    :fact-type (:classification meta)
+                    :confidence 1.0
+                    :origin-type "plot-extraction"
+                    :origin-data meta))))))
 
