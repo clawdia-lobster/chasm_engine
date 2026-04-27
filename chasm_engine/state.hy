@@ -76,11 +76,14 @@ But you're probably using autocommit anyway."
 
 (defn character-key [char-name]
   "First name, lowercase, no funny business."
-  (->> char-name
-       (.split)
-       (first)
-       (re.sub r"\W+" "")
-       (.lower)))
+  (if char-name
+      (->> char-name
+           (.split)
+           (first)
+           (re.sub r"\W+" "")
+           (.lower))
+      ; Fallback for None name
+      "unnamed"))
 
 (defn get-character [char-name]
   (log.debug f"Getting character {char-name}.")

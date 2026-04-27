@@ -163,9 +163,11 @@ Implements the Chasm WebSocket Protocol v1.0.
   (let [player-name (.get params "player" None)
         passphrase (.get params "passphrase" None)
         character-card (.get params "character_card" {})]
+    (log.info f"handle-spawn: player={player-name}")
     (if (not player-name)
       (make-error ERR-INVALID-PARAMS "Missing 'player' parameter")
       (let [existing (get-account player-name)]
+        (log.info f"handle-spawn: existing={(bool existing)}")
         (cond
           ;; Name taken with passphrase
           (and existing (.get existing "passphrase"))
@@ -174,20 +176,21 @@ Implements the Chasm WebSocket Protocol v1.0.
                                   (.hexdigest (sha256 (.encode passphrase)))))
               ;; Authenticated - resume session
               (let [token (create-session player-name websocket)
-                    spawn-result (await (engine.spawn-player player-name #** character-card))]
+                    result (await (engine.spawn-player player-name #** character-card))]
+                (log.info "handle-spawn: resume got result")
                 (cond
-                  (is spawn-result None)
+                  (is result None)
                     (make-error ERR-INTERNAL "Spawn returned no result")
-                  (= (.get spawn-result "role") "error")
-                    (make-error ERR-INTERNAL (:content spawn-result "Spawn failed"))
+                  (= (.get result "role") "error")
+                    (make-error ERR-INTERNAL (:content result "Spawn failed"))
                   :else
                     (make-response {
                       "player" player-name
                       "session_token" token
                       "expires_at" (+ (time) SESSION-EXPIRY-SECONDS)
-                      "world" (:world spawn-result)
-                      "location" (:place (:player spawn-result))
-                      "message" (:result spawn-result)
+                      "world" (:world result)
+                      "location" (:place (:player result))
+                      "message" (:result result)
                     } None)))
               (make-error ERR-INVALID-PASSPHRASE "Invalid passphrase"))
           
@@ -203,20 +206,21 @@ Implements the Chasm WebSocket Protocol v1.0.
                 (update-account player-name 
                                :passphrase (.hexdigest (sha256 (.encode passphrase)))))
               (let [token (create-session player-name websocket)
-                    spawn-result (await (engine.spawn-player player-name #** character-card))]
+                    result (await (engine.spawn-player player-name #** character-card))]
+                (log.info "handle-spawn: new player got result")
                 (cond
-                  (is spawn-result None)
+                  (is result None)
                     (make-error ERR-INTERNAL "Spawn returned no result")
-                  (= (.get spawn-result "role") "error")
-                    (make-error ERR-INTERNAL (:content spawn-result "Spawn failed"))
+                  (= (.get result "role") "error")
+                    (make-error ERR-INTERNAL (:content result "Spawn failed"))
                   :else
                     (make-response {
                       "player" player-name
                       "session_token" token
                       "expires_at" (+ (time) SESSION-EXPIRY-SECONDS)
-                      "world" (:world spawn-result)
-                      "location" (:place (:player spawn-result))
-                      "message" (:result spawn-result)
+                      "world" (:world result)
+                      "location" (:place (:player result))
+                      "message" (:result result)
                     } None)))))))))
 
 

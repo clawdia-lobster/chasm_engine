@@ -110,21 +110,24 @@ The engine logic is expected to handle many players.
 (defn :async payload [narrative result player-name]
   "What the client expects."
   (let [player (get-character player-name)
-        account (get-account player-name)]
-    (update-account player-name :turns (inc (:turns account 0)))
-    {"narrative" narrative
-     "result" result
-     "player" {"name" player.name
-               "objective" player.objective
-               "score" player.score
-               "turns" (:turns account None)
-               "health" player.health
-               "coords" player.coords
-               "compass" (await (print-map player.coords :compass True))
-               "inventory" (lfor i (item.inventory player) i.name)
-               "place" (place.name player.coords)}
-     "world" world-name
-     "coords" player.coords}))
+        account (get-account player-name)
+        turns (inc (if account (:turns account 0) 0))]
+    (update-account player-name :turns turns)
+    (if (not player)
+        {"error" f"Player not found: {player-name}"}
+        {"narrative" narrative
+         "result" result
+         "player" {"name" player.name
+                   "objective" player.objective
+                   "score" player.score
+                   "turns" turns
+                   "health" player.health
+                   "coords" player.coords
+                   "compass" (await (print-map player.coords :compass True))
+                   "inventory" (lfor i (item.inventory player) i.name)
+                   "place" (place.name player.coords)}
+         "world" world-name
+         "coords" player.coords})))
 
 (defn null [#* args #** kwargs] ; -> response
   "Server no-op."

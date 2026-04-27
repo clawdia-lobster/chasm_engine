@@ -54,16 +54,18 @@ Functions that manage place.
 
 (defn :async chat-gen-description [nearby-str place player messages [length "very short"]]
   "Make up a short place description from its name."
-  (-> (place-description
-        messages
-        :world world
-        :place-name place.name
-        :place place
-        :player player.name
-        :nearby nearby-str
-        :length length)
-    (await)
-    (trim-prose)))
+  (let [response (await (place-description
+                          messages
+                          :world world
+                          :place-name place.name
+                          :place place
+                          :player player.name
+                          :nearby nearby-str
+                          :length length))]
+    (if response
+        (trim-prose response)
+        ; Fallback if LLM returns None
+        f"You are in {place.name}.")))
 
 (defn :async gen-description [nearby-str coords [world-str world]]
   "Make up a single-paragraph place description from its name."
@@ -75,11 +77,14 @@ Functions that manage place.
                           :player "you"
                           :nearby nearby-str
                           :length "one paragraph"))]
-    (.join "\n\n"
-           [f"**{place.name}**"
-            (-> response
-                (.replace "\"" "")
-                trim-prose)])))
+    (if response
+        (.join "\n\n"
+               [f"**{place.name}**"
+                (-> response
+                    (.replace "\"" "")
+                    trim-prose)])
+        ; Fallback if LLM returns None
+        f"**{place.name}**\n\nYou are in {place.name}.")))
 
 (defn :async [(retry :stop (stop-after-attempt 3)
                    :wait (wait-random-exponential :min 2 :max 30)

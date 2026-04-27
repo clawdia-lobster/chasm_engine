@@ -59,13 +59,13 @@ Functions that deal with characters.
             character (Character #** (| (._asdict default-character)
                                         (._asdict char)
                                         filtered))]
-        (log.info f"{char.name}")
+        (log.info f"spawn: name param={name} char.name={char.name} character.name={character.name}")
         (when loaded (log.info f"loaded: {sanitised}"))
         (if (and character.name
                  (is-valid-key (character-key character.name))
                  (< retries 5))
             (do
-              (log.info f"set character {name} -> {char.name}")
+              (log.info f"set character {name} -> {character.name}")
               ;(log.info (json.dumps (._asdict character))))
               (set-character character))
             (do
@@ -74,7 +74,9 @@ Functions that deal with characters.
               (await (spawn name coords loaded (inc retries)))))))
     (except [e [Exception]]
       (log.error f"spawn failed for {name} at {coords}.")
-      (log.error e))))
+      (log.error e)
+      ; Return None explicitly so caller can handle
+      None)))
 
 (defn :async gen-json [coords [name None]] ; -> Character or None
   "Make up some plausible character based on a name."
