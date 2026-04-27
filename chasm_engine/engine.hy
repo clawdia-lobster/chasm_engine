@@ -74,6 +74,49 @@ The engine logic is expected to handle many players.
 (defn error [content]
   (msg "error" content))
 
+;; Development functions (extracted from develop)
+;; -----------------------------------------------------------------------------
+
+(defn :async extract-plot-points [messages player]
+  "Extract and record plot points from recent messages."
+  (await (plot.extract-point messages player)))
+
+(defn :async check-quest-progress [player-name messages]
+  "Check and advance quest progress based on recent messages."
+  (await (quest.try-advance player-name messages)))
+
+(defn :async run-world-author [messages]
+  "Run world author cycle to potentially add new content."
+  (await (world_author.author-cycle (world_author.summarise-narrative messages))))
+
+(defn :async develop-characters-at [coords messages]
+  "Develop all characters at the given coordinates."
+  (let [characters-here (character.get-at coords)]
+    (for [c characters-here]
+      (await (character.develop-json c messages)))))
+
+(defn :async spawn-npcs-if-needed [player messages]
+  "Spawn NPCs at player location if player is alone and narrative mentions new characters."
+  (let [characters-here (character.get-at player.coords)]
+    (when (= (len characters-here) 1)
+      (for [c-name (await (character.get-new messages player))]
+        (let [c (get-character c-name)]
+          (if (and c c.npc)
+            (character.move c player.coords)
+            (await (character.spawn :name c-name :coords player.coords))))))))
+
+(defn :async develop-player [player-name]
+  "Develop a single player: plot, quests, world, characters, NPCs."
+  (let [player (get-character player-name)
+        messages (get-narrative player-name)
+        recent-messages (cut messages -4 None)]
+    (when (and player messages)
+      (await (extract-plot-points recent-messages player))
+      (await (check-quest-progress player-name recent-messages))
+      (await (run-world-author recent-messages))
+      (await (develop-characters-at player.coords recent-messages))
+      (await (spawn-npcs-if-needed player recent-messages)))))
+
 ;; API functions
 ;; -----------------------------------------------------------------------------
 
@@ -349,32 +392,12 @@ The engine logic is expected to handle many players.
         (await (character.spawn :name None :coords coords))))))
   
 (defn :async develop [] ; -> char or None
-  "Move the plot and characters along.
-  Writes to vdb memory so is not thread-safe."
+  "Process the development queue: plot, quests, world, characters, NPCs.
+  Note: Uses global develop-queue, not thread-safe."
   (when develop-queue
     (log.info f"queue: {develop-queue}")
-    (let [player-name (.pop develop-queue)
-          player (get-character player-name)
-          messages (get-narrative player-name)
-          recent-messages (cut messages -4 None) ; just new messages
-          characters-here (character.get-at player.coords)]
-      (when (and player-name player messages)
-        ; new plot point, record in vdb, db and recent events
-        (await (plot.extract-point recent-messages player))
-        ; check quest progress
-        (await (quest.try-advance player-name recent-messages))
-        ; world author: potentially add new content
-        (await (world_author.author-cycle (world_author.summarise-narrative recent-messages)))
-        ; all players get developed
-        (for [c characters-here]
-          (await (character.develop-json c recent-messages)))
-        ; Summon npcs to the player's location if the player is the only one here
-        (when (= (len characters-here) 1)
-          (for [c-name (await (character.get-new recent-messages player))]
-            (let [c (get-character c-name)]
-              (if (and c c.npc)
-                (character.move c player.coords) ; make sure they're here if the narrator says so
-                (await (character.spawn :name c-name :coords player.coords)))))))))) ; new characters may randomly spawn if mentioned
+    (let [player-name (.pop develop-queue)]
+      (await (develop-player player-name)))))
 
 (defn set-offline-players []
   "Set characters not accessed in last hour to NPC."
