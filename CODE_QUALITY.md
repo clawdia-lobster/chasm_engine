@@ -1,7 +1,7 @@
 # Chasm Code Quality Plan
 
 ## Summary
-8 issues identified, 6 resolved, 2 remaining.
+8 issues identified, 7 resolved, 1 remaining.
 
 ---
 
@@ -44,18 +44,17 @@
 - Falls back to `truncate` for short message lists
 - Preserves context better than brutal deletion
 
-### 7. Refactor engine.develop
+### 7. Refactor engine.develop ✅
 **Issue:** Does 5 things, not thread-safe, uses global queue.
-
-**Plan:**
-1. Extract `extract-plot-points()`
-2. Extract `check-quest-progress()`
-3. Extract `run-world-author()`
-4. Extract `develop-characters-at()`
-5. Extract `spawn-npcs-if-needed()`
-6. Make thread-safe (remove global queue)
-
-**Complexity:** High (architectural change)
+**Result:**
+- Extracted 5 focused functions:
+  - `extract-plot-points`
+  - `check-quest-progress`
+  - `run-world-author`
+  - `develop-characters-at`
+  - `spawn-npcs-if-needed`
+- Main `develop()` now orchestrates via `develop-player()`
+- Thread-safety still uses global queue (separate concern)
 
 ---
 
@@ -66,6 +65,41 @@
 
 **Recommendation:** Document intended use case or simplify.
 **Why deferred:** Architectural decision, needs user input on game design direction.
+
+---
+
+## Code Review Findings (Kimi K2.5)
+
+### Critical Issues Fixed
+
+1. **character.spawn infinite recursion** ✅
+   - Replaced recursion with iteration
+   - Max 5 retries, explicit None return on failure
+
+2. **spawn-player missing cleanup** ✅
+   - Added delete-character on failure
+   - Check for None player before proceeding
+
+3. **extract-json-unwrap silent failures** ✅
+   - Added logging for parse failures
+   - Helps debug downstream issues
+
+### Remaining Issues
+
+1. **Thread-safety: develop-queue** (deferred)
+   - Global set accessed without synchronization
+   - Fix: Use asyncio.Queue or asyncio.Lock
+   - Requires architectural change
+
+2. **Thread-safety: _context-cache** (deferred)
+   - Read-modify-write not atomic
+   - Fix: Use asyncio.Lock or contextvars
+
+### Medium Priority
+
+- Add type hints to functions
+- Rename `is-valid-key` to `valid-character-key?`
+- Extract command handlers to dispatch table
 
 ---
 
