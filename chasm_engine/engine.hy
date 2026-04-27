@@ -560,9 +560,12 @@ The engine logic is expected to handle many players.
 (defn :async narrate [messages player]
   "Narrate the story, in the fictional universe."
   (let [here (. (get-place player.coords) name) ; a place
+        ; Include what the narrator knows about the player for context-aware responses
+        narrator-knowledge (memory-facts.knowledge-about "narrator" player.name :n 5)
         context (jnn [(jn (plot.recall-points (plot.news)))
                       (await (player-context player))
-                      (memories player)])
+                      (memories player)
+                      narrator-knowledge])
         narrative-prompt (narrative "system-prompt"
                            :player player.name
                            :context context
@@ -579,9 +582,12 @@ The engine logic is expected to handle many players.
   "Stream narrative chunks as they arrive.
   Yields (chunk, done) tuples where done=True on final chunk."
   (let [here (. (get-place player.coords) name)
+        ; Include what the narrator knows about the player for context-aware responses
+        narrator-knowledge (memory-facts.knowledge-about "narrator" player.name :n 5)
         context (jnn [(jn (plot.recall-points (plot.news)))
                       (await (player-context player))
-                      (memories player)])
+                      (memories player)
+                      narrator-knowledge])
         narrative-prompt (narrative "system-prompt"
                            :player player.name
                            :context context
