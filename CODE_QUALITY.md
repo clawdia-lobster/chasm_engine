@@ -1,7 +1,7 @@
 # Chasm Code Quality Plan
 
 ## Summary
-8 issues identified, 5 resolved, 3 remaining.
+8 issues identified, 6 resolved, 2 remaining.
 
 ---
 
@@ -35,15 +35,14 @@
   - Intent classification for natural language
 - ROADMAP now matches code
 
-### 6. Improve chat.truncate
+### 6. Improve chat.truncate ✅
 **Issue:** Current approach removes oldest messages with no intelligence.
-
-**Plan:**
-1. Wire up `summaries.hy` templates
-2. Implement sliding window + summary for older context
-3. Keep recent messages verbatim, summarize older ones
-
-**Complexity:** Medium-High (requires testing)
+**Result:**
+- Added `truncate-smart` async function
+- Keeps recent N messages verbatim (default 10)
+- Summarizes older messages using `summary-msgs-paragraph` template
+- Falls back to `truncate` for short message lists
+- Preserves context better than brutal deletion
 
 ### 7. Refactor engine.develop
 **Issue:** Does 5 things, not thread-safe, uses global queue.
