@@ -7,7 +7,7 @@ Functions that manage place.
 
 (import chasm_engine.lib [extract-json-unwrap])
 
-(import tenacity [retry stop-after-attempt wait-random-exponential])
+(import tenacity [retry stop-after-attempt wait-random-exponential retry-if-exception-type])
 
 (import chasm_engine [log])
 
@@ -81,7 +81,11 @@ Functions that manage place.
                 (.replace "\"" "")
                 trim-prose)])))
 
-(defn :async gen-json [nearby-places]
+(defn :async [(retry :stop (stop-after-attempt 3)
+                   :wait (wait-random-exponential :min 2 :max 30)
+                   :retry (retry-if-exception-type Exception)
+                   :retry_error_callback (fn [retry_state] None))]
+  gen-json [nearby-places]
   "Make up a place from its neighbours."
   (let [raw-response (await (place-json
                            :context f"The story's setting is: {world}\nNearby places: {nearby-places}"
@@ -97,7 +101,8 @@ Functions that manage place.
           (let [resp-len (if raw-response (len raw-response) 0)]
             (log.error f"gen-json failed. Raw response length: {resp-len}")
             (log.debug f"Raw response: {raw-response}"))
-          None))))
+          ; Raise to trigger retry
+          (raise (Exception "gen-json returned invalid result"))))))
 
 (defn :async gen-rooms [place-dict]
   "Make up some rooms for a place."
