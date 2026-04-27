@@ -25,20 +25,15 @@
 **Result:** Created `templates/world_author.toml` with 4 prompts.
 **Remaining:** Wire up templates in `world_author.hy`.
 
----
-
-## In Progress 🔄
-
-### 5. Wire up intent.hy
-**Issue:** `intent.hy` exists with LLM-based intent classification but is not imported or used in `engine.parse`. ROADMAP says "resolved" but code not connected.
-
-**Plan:**
-1. Import `intent.hy` in `engine.hy`
-2. Replace manual `parse-*` functions with `classify-intent` call
-3. Map intent results to existing handlers
-4. Test with existing commands
-
-**Complexity:** Medium (need to preserve existing behaviour)
+### 5. Wire up intent.hy ✅
+**Issue:** `intent.hy` existed with LLM-based intent classification but was not imported or used.
+**Result:**
+- Added intent import to engine.hy
+- Created `parse-with-intent` function
+- Modified parse to use hybrid approach:
+  - Fast path for explicit `/commands`
+  - Intent classification for natural language
+- ROADMAP now matches code
 
 ### 6. Improve chat.truncate
 **Issue:** Current approach removes oldest messages with no intelligence.

@@ -8,6 +8,7 @@ Chat management functions.
 (import hyjinx.lib [first])
 
 (import chasm-engine [log])
+(require chasm-engine.instructions [deftemplate def-fill-template])
 
 (import tiktoken)
 (import openai)
@@ -88,6 +89,32 @@ Chat management functions.
 
       :else
       messages)))
+
+(defn :async truncate-smart [messages [spare-length None] [keep-recent 10]]
+  "Smart truncation that summarizes older messages instead of deleting them.
+  Keeps the most recent `keep-recent` messages verbatim.
+  Summarizes older messages into a single system message."
+  (let [l (- (config "context_length") (or spare-length (config "max_tokens") 300))
+        n (len messages)]
+    (cond
+      ;; Short enough already
+      (<= (token-length (str messages)) l)
+      messages
+      
+      ;; Too short to summarize
+      (<= n keep-recent)
+      (truncate messages :spare-length spare-length)
+      
+      ;; Summarize older messages
+      :else
+      (let [old-messages (cut messages 0 (- n keep-recent))
+            recent-messages (cut messages (- n keep-recent) None)
+            ;; Format old messages for summarization
+            old-text (.join "\n" (list (map (fn [m] f"{(:role m)}: {(:content m)}") old-messages)))
+            ;; Get summary using template
+            summary-text (await (summary-msgs-paragraph old-messages :provider "backend"))
+            summary-msg (system f"[Earlier: {summary-text}]")]
+        (+ [summary-msg] recent-messages)))))
 
 (defn msg->dlg [user-name assistant-name message]
   "Replace standard roles with given names and ignore roles with system messages.
