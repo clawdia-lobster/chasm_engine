@@ -172,12 +172,13 @@ The engine logic is expected to handle many players.
     (when active
       (.append lines "Active quests:")
       (for [p active]
-        (let [q      (quest.get-quest (:quest_id p))
+        (let [quest-id (:quest_id p None)
+              q      (when quest-id (quest.get-quest quest-id))
               idx    (:stage_index p 0)
               stages (if q (:stages q []) [])
               stage  (when (and q (< idx (len stages))) (get stages idx))]
           (when q
-            (.append lines (+ "  " (:name q)))
+            (.append lines (+ "  " (:name q "Unknown")))
             (.append lines (if stage
                                (+ "    -> " (:description stage ""))
                                "    -> Complete!"))))))

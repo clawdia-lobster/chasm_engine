@@ -277,14 +277,18 @@ Implements the Chasm WebSocket Protocol v1.0.
         (if (not player-name)
           (make-error ERR-SESSION-EXPIRED "Session expired")
           (let [player (get-character player-name)
-                account (get-account player-name)]
+                account (get-account player-name)
+                player-place (when player (getattr player "place" None))
+                location-name (if player-place
+                                  (getattr player-place "name" "unknown")
+                                  "unknown")]
             (make-response {
               "player" {
                 "name" player-name
-                "location" (or (.get player "place" {}).name "unknown")
-                "score" (or (.get player "score") 0)
-                "turns" (or (.get player "turns") 0)
-                "online_since" (or (.get account "created_at") (time))
+                "location" location-name
+                "score" (or (when player player.score) 0)
+                "turns" (or (when account (.get account "turns")) 0)
+                "online_since" (or (when account (.get account "created_at")) (time))
               }
               "world" {
                 "name" (config "world" "unknown")

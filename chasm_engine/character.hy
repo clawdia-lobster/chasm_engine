@@ -277,10 +277,10 @@ Functions that deal with characters.
                           :backstory enhanced-backstory
                           :objective enhanced-objective)
         ;; Store connections as facts
-        (when (:connections backstory)
+        (when (and backstory (:connections backstory))
           (for [conn (:connections backstory)]
-            (let [other-name (:name conn)
-                  relationship (:relationship conn)]
+            (let [other-name (:name conn None)
+                  relationship (:relationship conn None)]
               (when (and other-name relationship)
                 (import chasm_engine.facts [add-fact])
                 (add-fact char.name "knows" other-name
@@ -290,7 +290,7 @@ Functions that deal with characters.
                           :location place-name
                           :classification "significant")))))
         ;; Store secret as a fact
-        (when (:secret backstory)
+        (when (and backstory (:secret backstory))
           (import chasm_engine.facts [add-fact])
           (add-fact char.name "has-secret" (:secret backstory)
                     :location place-name
