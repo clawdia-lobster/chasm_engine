@@ -22,7 +22,7 @@ The engine logic is expected to handle many players.
                             len-items
                             get-place len-places
                             random-coords
-                            get-character update-character len-characters
+                            get-character update-character delete-character len-characters
                             get-account update-account get-accounts
                             get-narrative set-narrative])
 
@@ -190,14 +190,19 @@ The engine logic is expected to handle many players.
   (try
     (await (place.extend-map (Coords 0 0)))
     (let [coords (random-coords)
-          player (await (character.spawn :name player-name :loaded kwargs :coords coords)) 
-          narrative (or (get-narrative player-name)
-                        (set-narrative [(user f"****") (assistant (await (describe-place player)))] player-name))]
-      (update-character player :npc False)
-      (await (place.extend-map coords))
-      (await (payload narrative (last narrative) player.name)))
+          player (await (character.spawn :name player-name :loaded kwargs :coords coords))]
+      (if (not player)
+          (error f"Failed to spawn player: {player-name}")
+          (let [narrative (or (get-narrative player-name)
+                              (set-narrative [(user f"****") (assistant (await (describe-place player)))] player-name))]
+            (update-character player :npc False)
+            (await (place.extend-map coords))
+            (await (payload narrative (last narrative) player.name)))))
     (except [err [Exception]]
-      (log.error "unknown exception" :exception err)
+      (log.error "spawn-player failed" :exception err)
+      ;; Cleanup partial state
+      (when (get-character player-name)
+        (delete-character player-name))
       (error f"Engine error: {(repr err)}"))))
 
 (defn help-str []

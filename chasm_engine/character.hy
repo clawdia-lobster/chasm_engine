@@ -38,45 +38,41 @@ Functions that deal with characters.
 (defn is-valid-key [s]
   (re.match "^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$" s))
 
-(defn :async spawn [[name None] [coords (Coords 0 0)] [loaded {}] [retries 0]] ; -> Character
-  "Spawn a character from card, db, or just generated."
-  (try
-    (let [; only allow to override some
-          sanitised {"name" name
-                     "appearance" (:appearance loaded None)
-                     "gender" (:gender loaded None)
-                     "backstory" (:backstory loaded None)
-                     "voice" (:voice loaded None)
-                     "traits" (:traits loaded None)
-                     "likes" (:likes loaded None)
-                     "dislikes" (:dislikes loaded None)
-                     "occupation" (:occupation loaded None)
-                     "motivation" (:motivation loaded None)}]
-      (let [char (or (get-character name)
-                     (await (gen-json coords name))
-                     default-character)
-            filtered (dfor [k v] (.items sanitised) :if v k v)
-            character (Character #** (| (._asdict default-character)
-                                        (._asdict char)
-                                        filtered))]
-        (log.info f"spawn: name param={name} char.name={char.name} character.name={character.name}")
-        (when loaded (log.info f"loaded: {sanitised}"))
-        (if (and character.name
-                 (is-valid-key (character-key character.name))
-                 (< retries 5))
-            (do
-              (log.info f"set character {name} -> {character.name}")
-              ;(log.info (json.dumps (._asdict character))))
-              (set-character character))
-            (do
-              ; else keep trying until it works
-              (log.warn f"invalid spawn for character {character.name} at {coords}, retrying...")
-              (await (spawn name coords loaded (inc retries)))))))
-    (except [e [Exception]]
-      (log.error f"spawn failed for {name} at {coords}.")
-      (log.error e)
-      ; Return None explicitly so caller can handle
-      None)))
+(defn :async spawn [[name None] [coords (Coords 0 0)] [loaded {}] [max-retries 5]] ; -> Character or None
+  "Spawn a character from card, db, or just generated. Uses iteration to avoid infinite recursion."
+  (for [retries (range max-retries)]
+    (try
+      (let [; only allow to override some
+            sanitised {"name" name
+                       "appearance" (:appearance loaded None)
+                       "gender" (:gender loaded None)
+                       "backstory" (:backstory loaded None)
+                       "voice" (:voice loaded None)
+                       "traits" (:traits loaded None)
+                       "likes" (:likes loaded None)
+                       "dislikes" (:dislikes loaded None)
+                       "occupation" (:occupation loaded None)
+                       "motivation" (:motivation loaded None)}]
+        (let [char (or (get-character name)
+                       (await (gen-json coords name))
+                       default-character)
+              filtered (dfor [k v] (.items sanitised) :if v k v)
+              character (Character #** (| (._asdict default-character)
+                                          (._asdict char)
+                                          filtered))]
+          (log.info f"spawn: name param={name} char.name={char.name} character.name={character.name}")
+          (when loaded (log.info f"loaded: {sanitised}"))
+          (if (and character.name
+                   (is-valid-key (character-key character.name)))
+              (do
+                (log.info f"set character {name} -> {character.name}")
+                (set-character character)
+                (return character))
+              (log.warn f"invalid spawn for character {character.name} at {coords}, retry {retries}..."))))
+      (except [e [Exception]]
+        (log.error f"spawn failed for {name} at {coords}: {e}"))))
+  (log.error f"spawn failed after {max-retries} attempts for {name}")
+  None)
 
 (defn :async gen-json [coords [name None]] ; -> Character or None
   "Make up some plausible character based on a name."

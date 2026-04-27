@@ -26,115 +26,20 @@ Design: docs/WORLD_AUTHOR.md (to be created)
 (import chasm_engine.place)
 (import chasm_engine.character)
 (import chasm_engine.quest)
+(require chasm-engine.instructions [deftemplate])
 
-
-;; * Author Prompts
+;; * Author Prompts (loaded from templates/world_author.toml)
 ;; -----------------------------------------------------------------------------
 
-(setv author-prompt
-  "You are the World Author for an interactive fiction game.
-Your job is to review the current state of the world and decide what new content
-to add to keep the world fresh, interesting, and coherent.
-
-World setting: {world}
-Current map size: {map_size} places
-Active characters: {character_count}
-Active quests: {quest_count}
-
-Recent narrative summary:
-{narrative_summary}
-
-Decide what to add. Choose ONE of:
-1. NEW_REGION - Add a new area at the map edge
-2. NEW_QUEST - Create a quest based on recent events  
-3. NEW_NPC - Add an interesting character
-4. PLOT_HOOK - Inject a mystery or event
-5. NOTHING - World is fine as-is
-
-Reply in JSON:
-{\"decision\": \"NEW_REGION\", \"reason\": \"brief explanation\", \"details\": {...}}")
-
-
-(setv region-prompt
-  "Create a new region for the world: {world}
-
-This region should be at coordinates ({x}, {y}), adjacent to existing areas.
-Existing nearby places: {nearby}
-
-Generate a compelling new location that fits the world theme.
-
-Reply in JSON:
-{
-  \"name\": \"Place Name\",
-  \"appearance\": \"vivid description\",
-  \"atmosphere\": \"mood and feeling\",
-  \"terrain\": \"terrain type\",
-  \"rooms\": [\"room1\", \"room2\"]
-}")
-
-
-(setv quest-prompt
-  "Create a quest based on recent events in: {world}
-
-Recent happenings:
-{narrative_summary}
-
-Active characters: {characters}
-
-Design a quest that:
-- Follows naturally from recent events
-- Involves existing characters or places
-- Has 2-4 stages with clear conditions
-- Offers meaningful choices
-
-Reply as a quest TOML structure (without the [quest] header):
-{
-  \"id\": \"kebab-case-id\",
-  \"name\": \"Quest Name\",
-  \"description\": \"brief summary\",
-  \"giver\": \"NPC name or null\",
-  \"stages\": [
-    {\"id\": \"stage1\", \"description\": \"...\", \"condition\": \"...\", \"hint\": \"...\", \"optional\": false}
-  ],
-  \"rewards\": {\"score\": 50, \"items\": [], \"unlocks\": []}
-}")
-
-
-(setv npc-prompt
-  "Create an NPC for: {world}
-
-This character will appear at: {location}
-
-Existing characters nearby: {nearby_chars}
-
-Generate a character with:
-- A distinct personality that fits the world
-- A connection to existing places or people
-- A secret or motivation
-- Potential for quests or conflict
-
-Reply in JSON:
-{
-  \"name\": \"Character Name\",
-  \"appearance\": \"physical description\",
-  \"gender\": \"M/F/N\",
-  \"backstory\": \"brief history\",
-  \"voice\": \"speech pattern\",
-  \"traits\": [\"trait1\", \"trait2\"],
-  \"occupation\": \"job or role\",
-  \"motivation\": \"what they want\",
-  \"secret\": \"something hidden\"
-}")
-
+(deftemplate world_author)
 
 ;; * Review & Decision
 ;; -----------------------------------------------------------------------------
 
 (defn :async review-world [narrative-summary]
   "Ask the World Author LLM what content to add. Returns decision dict."
-  (let [prompt (author-prompt.format
+  (let [prompt (world_author "author-decision"
                   :world world
-                  :world_name world-name
                   :map_size (len-places)
                   :character_count (len (list (get-characters)))
                   :quest_count (len (quest.all-quests))
@@ -160,7 +65,7 @@ Reply in JSON:
                                (Coords (:x coords) (- (:y coords) 1))]
                         :if (get-place c)
                         (:name (get-place c) "unknown"))
-        prompt (region-prompt.format
+        prompt (world_author "region"
                  :world world
                  :x (:x coords)
                  :y (:y coords)
@@ -177,7 +82,7 @@ Reply in JSON:
 (defn :async generate-quest [narrative-summary]
   "Create a new quest based on recent events."
   (let [chars (lfor c (get-characters) (:name c))
-        prompt (quest-prompt.format
+        prompt (world_author "quest"
                  :world world
                  :narrative_summary narrative-summary
                  :characters (or (.join ", " chars) "no one yet"))
@@ -186,7 +91,7 @@ Reply in JSON:
                                  :provider "narrator"))
         quest-data (extract-json-unwrap response)]
     (when quest-data
-      (log.info f"Generated quest: {(or (.get quest-data "name") "unknown")}")
+      (log.info f"Generated quest: {(or (.get quest-data \"name\") \"unknown\")}")
       quest-data)))
 
 
@@ -195,7 +100,7 @@ Reply in JSON:
   (let [nearby-chars (lfor c (character.get-at coords) (:name c))
         place (get-place coords)
         place-name (if place (:name place) "unknown location")
-        prompt (npc-prompt.format
+        prompt (world_author "npc"
                  :world world
                  :location place-name
                  :nearby_chars (or (.join ", " nearby-chars) "no one"))
@@ -204,7 +109,7 @@ Reply in JSON:
                                  :provider "narrator"))
         npc-data (extract-json-unwrap response)]
     (when npc-data
-      (log.info f"Generated NPC: {(or (.get npc-data "name") "unknown")}")
+      (log.info f"Generated NPC: {(or (.get npc-data \"name\") \"unknown\")}")
       npc-data)))
 
 

@@ -53,8 +53,9 @@
       (cond
         (isinstance result dict) result
         (isinstance result str) (json.loads result)
-        :else None))
+        :else (do (log.warning f"extract-json-unwrap: unexpected type {(type result)}") None)))
     (except [Exception]
+      (log.warning f"extract-json-unwrap: failed to parse JSON from text (len={(len text)})")
       None)))
 
 ;; config function
