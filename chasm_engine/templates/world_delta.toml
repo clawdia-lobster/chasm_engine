@@ -1,0 +1,45 @@
+# World Delta templates - extract world changes from narrative
+#
+# IMPORTANT: Use snake_case for JSON keys (entity_type, entity_id, etc.)
+# Hy mangles kebab-case accessors (:entity-type) to snake_case (entity_type)
+# So template outputs snake_case, code accesses with kebab-case keywords
+
+# System prompt for delta extraction
+system = """You are a world state tracker for a collaborative storytelling game.
+Your job is to identify any changes to the world state that are explicitly stated 
+or strongly implied in the narrative.
+
+Valid entity types: place, item, character
+- For places, entity_id is "x,y" coordinates (e.g., "0,0", "-3,5")
+- For items and characters, entity_id is the name
+
+Valid place attributes: name, short_description, state, properties, atmosphere, appearance
+Valid item attributes: name, state, properties, appearance, usage, owner, coords
+Valid character attributes: health, emotions, objective, destination, coords, properties
+
+State values: "normal", "ruins", "flooded", "burning", etc. for places
+              "intact", "broken", "consumed", "lit", "extinguished" etc. for items
+
+Properties is a dict of custom key-value pairs.
+
+Only report changes that are EXPLICITLY stated or STRONGLY implied.
+If nothing changed, return empty arrays.
+
+Reply with JSON only in this format:
+{
+  "updates": [{"entity_type": "type", "entity_id": "id", "patch": {"attr": "value"}}],
+  "creations": [{"entity_type": "type", "entity_id": "id", "attrs": {...}}],
+  "deletions": [{"entity_type": "type", "entity_id": "id"}],
+  "relations": []
+}"""
+
+# User prompt for delta extraction
+delta = """Current location: {location}
+Items here: {items}
+Characters here: {characters}
+
+Narrative:
+{narrative}
+
+Extract any world state changes from this narrative. Be conservative - only report 
+changes that are clearly stated or strongly implied in the text."""

@@ -1,0 +1,92 @@
+# World Author prompts
+
+author-decision = '''You are the World Author for an interactive fiction game.
+Your job is to review the current state of the world and decide what new content
+to add to keep the world fresh, interesting, and coherent.
+
+World setting: {world}
+Current map size: {map_size} places
+Active characters: {character_count}
+Active quests: {quest_count}
+
+Recent narrative summary:
+{narrative_summary}
+
+Decide what to add. Choose ONE of:
+1. NEW_REGION - Add a new area at the map edge
+2. NEW_QUEST - Create a quest based on recent events  
+3. NEW_NPC - Add an interesting character
+4. PLOT_HOOK - Inject a mystery or event
+5. NOTHING - World is fine as-is
+
+Reply in JSON:
+{"decision": "NEW_REGION", "reason": "brief explanation", "details": {...}}'''
+
+
+region = '''Create a new region for the world: {world}
+
+This region should be at coordinates ({x}, {y}), adjacent to existing areas.
+Existing nearby places: {nearby}
+
+Generate a compelling new location that fits the world theme.
+
+Reply in JSON:
+{
+  "name": "Place Name",
+  "appearance": "vivid description",
+  "atmosphere": "mood and feeling",
+  "terrain": "terrain type",
+  "rooms": ["room1", "room2"]
+}'''
+
+
+quest = '''Create a quest based on recent events in: {world}
+
+Recent happenings:
+{narrative_summary}
+
+Active characters: {characters}
+
+Design a quest that:
+- Follows naturally from recent events
+- Involves existing characters or places
+- Has 2-4 stages with clear conditions
+- Offers meaningful choices
+
+Reply as a quest TOML structure (without the [quest] header):
+{
+  "id": "kebab-case-id",
+  "name": "Quest Name",
+  "description": "brief summary",
+  "giver": "NPC name or null",
+  "stages": [
+    {"id": "stage1", "description": "...", "condition": "...", "hint": "...", "optional": false}
+  ],
+  "rewards": {"score": 50, "items": [], "unlocks": []}
+}'''
+
+
+npc = '''Create an NPC for: {world}
+
+This character will appear at: {location}
+
+Existing characters nearby: {nearby_chars}
+
+Generate a character with:
+- A distinct personality that fits the world
+- A connection to existing places or people
+- A secret or motivation
+- Potential for quests or conflict
+
+Reply in JSON:
+{
+  "name": "Character Name",
+  "appearance": "physical description",
+  "gender": "M/F/N",
+  "backstory": "brief history",
+  "voice": "speech pattern",
+  "traits": ["trait1", "trait2"],
+  "occupation": "job or role",
+  "motivation": "what they want",
+  "secret": "something hidden"
+}'''

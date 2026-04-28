@@ -1,0 +1,41 @@
+# Quest generation templates
+
+# Generate a follow-up quest based on completed quest
+backstory-system = '''You are a character designer for a text adventure game.
+Generate rich backstories for NPCs that connect them to the world and other characters.'''
+
+backstory = '''Generate a rich backstory for a new NPC.
+
+NPC name: {char_name}
+Location: {place_name}
+Existing characters nearby: {existing_names}
+
+Create a backstory that:
+- Explains why they are here
+- Connects them to at least one existing character (if any)
+- Gives them a secret or hidden motivation
+- Fits the world theme
+
+Reply with JSON only:
+{{"backstory": "...", "secret": "...", "connections": [{{"name": "...", "relationship": "..."}}], "hidden_objective": "..."}}'''
+
+# Generate a follow-up quest based on completed quest
+followup-system = '''You are a quest designer for a text adventure game.
+Generate follow-up quests that logically extend from completed quests and recent narrative events.'''
+
+followup = '''Generate a follow-up quest based on the completed quest and recent narrative.
+
+Completed quest: {quest_name}
+Completed quest description: {quest_description}
+
+Recent narrative:
+{narrative}
+
+Generate a new quest that:
+- Follows logically from the completed quest
+- References events or characters from the narrative
+- Has a clear goal and stages
+- Is interesting and engaging
+
+Reply with JSON only:
+{{"id": "quest-id", "name": "Quest Name", "description": "...", "stages": [{{"condition": "...", "description": "..."}}], "rewards": {{"score": 10}}}}'''
