@@ -164,12 +164,15 @@ The engine logic is expected to handle many players.
             [f"***{(place.name coords)}***"
              f"*{(await (place.nearby-str coords))}*"])))))
 
-(defn :async payload [narrative result player-name]
+(defn :async payload [narrative result player-name [increment-turn True]]
   "What the client expects."
   (let [player (get-character player-name)
         account (get-account player-name)
-        turns (inc (if account (:turns account 0) 0))]
-    (update-account player-name :turns turns)
+        turns (if increment-turn
+                (inc (if account (:turns account 0) 0))
+                (if account (:turns account 0) 0))]
+    (when increment-turn
+      (update-account player-name :turns turns))
     (if (not player)
         {"error" f"Player not found: {player-name}"}
         {"narrative" narrative
@@ -219,7 +222,7 @@ The engine logic is expected to handle many players.
                               (set-narrative [(user f"****") (assistant (await (describe-place player)))] player-name))]
             (update-character player :npc False)
             (await (place.extend-map coords))
-            (await (payload narrative (last narrative) player.name)))))
+            (await (payload narrative (last narrative) player.name :increment-turn False)))))
     (except [err [Exception]]
       (log.error "spawn-player failed" :exception err)
       ;; Cleanup partial state
