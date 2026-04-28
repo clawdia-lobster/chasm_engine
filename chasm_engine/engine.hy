@@ -5,6 +5,7 @@ The engine logic is expected to handle many players.
 
 (require hyrule.argmove [-> ->>])
 (require hyrule.control [unless])
+(import hyrule.collections [assoc])
 
 (require hyjinx.macros [prepend append])
 

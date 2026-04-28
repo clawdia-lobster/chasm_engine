@@ -123,7 +123,10 @@ But you're probably using autocommit anyway."
 (defn get-place [coords]
   (let [key (str coords)]
     (try
-      (Place #** (get places key))
+      ;; Provide defaults for new fields not in legacy data
+      (let [data (get places key)
+            defaults {"short_description" None "state" "normal" "properties" {}}]
+        (Place #** (| defaults data)))
       (except [KeyError]))))
 
 (defn set-place [loc]
@@ -164,7 +167,10 @@ But you're probably using autocommit anyway."
 (defn get-item [item-name]
   (when item-name
     (try
-      (Item #** (get items item-name))
+      ;; Provide defaults for new fields not in legacy data
+      (let [data (get items item-name)
+            defaults {"state" "intact" "properties" {}}]
+        (Item #** (| defaults data)))
       (except [KeyError]))))
 
 (defn set-item [item]

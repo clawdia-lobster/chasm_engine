@@ -5,7 +5,7 @@ Implements the Chasm WebSocket Protocol v1.0.
 
 (require hyrule [defmain unless])
 (require hyrule.argmove [-> ->>])
-(import hyrule [assoc])
+(import hyrule.collections [assoc])
 
 (import asyncio)
 (import json)

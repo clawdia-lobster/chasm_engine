@@ -265,18 +265,19 @@ that constrains the narrator's storytelling.
 (defn :async extract-delta [narrative player]
   "Extract world changes from narrative text.
   Returns delta dict or empty delta on failure."
+  (import chasm_engine [item character place])
   (try
     (let [response (await (world-delta
                             :narrative narrative
                             :player player.name
                             :location (get-place player.coords)
-                            :items-here (lfor i (item.get-at player.coords) i.name)
-                            :characters-here (lfor c (character.get-at player.coords) c.name)))
+                            :items (lfor i (item.get-at player.coords) i.name)
+                            :characters (lfor c (character.get-at player.coords) c.name)))
           delta (extract-json-unwrap response)]
-      (or delta {:updates [] :creations [] :deletions [] :relations []}))
+      (or delta {"updates" [] "creations" [] "deletions" [] "relations" []}))
     (except [e Exception]
       (log.error f"Failed to extract delta: {e}")
-      {:updates [] :creations [] :deletions [] :relations []})))
+      {"updates" [] "creations" [] "deletions" [] "relations" []})))
 
 
 ;; * Timeline (Event Sourcing)
@@ -326,11 +327,15 @@ that constrains the narrator's storytelling.
   Returns {\"success\" bool \"applied\" int \"errors\" [...]}."
   (let [validation (validate-delta delta)]
     (if (.get validation "valid")
-        (let [result (await (apply-delta delta))]
-          (timeline.record delta narrative)
+        (let [result (await (apply-delta delta))
+              applied (.get result "applied")
+              errors (.get result "errors")]
+          ;; Only record in timeline if something was actually applied
+          (when (> applied 0)
+            (timeline.record delta narrative))
           {"success" True 
-           "applied" (.get result "applied")
-           "errors" (.get result "errors")})
+           "applied" applied
+           "errors" errors})
         {"success" False
          "applied" 0
          "errors" (.get validation "errors")})))

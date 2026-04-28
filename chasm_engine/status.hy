@@ -2,7 +2,7 @@
 Server status tracking and reporting.
 "
 
-(require hyrule [assoc])
+(import hyrule.collections [assoc])
 (import time [time])
 (import asyncio)
 
