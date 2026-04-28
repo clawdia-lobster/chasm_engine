@@ -51,3 +51,11 @@
 14. **parse-stream-async wrong signature** — Function took wrong arguments.
     - **Root cause:** Function signature had player-name as first arg, but was called with input.
     - **Status:** ✅ Fixed — Function now takes input as first arg, uses stored session token.
+
+15. **Client hangs during spawn** — UI not responsive during spawn.
+    - **Root cause:** Spawn happened before app started, so UI couldn't update.
+    - **Status:** ✅ Fixed — Spawn now runs as background task after app starts.
+
+16. **Notifications not handled** — Server notifications were treated as responses.
+    - **Root cause:** _call-async returned first message instead of waiting for response with matching id.
+    - **Status:** ✅ Fixed — _call-async now loops until it gets response with matching id.
