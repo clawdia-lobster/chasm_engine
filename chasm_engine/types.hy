@@ -33,7 +33,8 @@ They must be integer."
                                  "rooms"
                                  "appearance"
                                  "atmosphere"
-                                 "terrain"]))
+                                 "terrain"
+                                 "short_description"]))
 
 ; consider adding provenance
 (setv Item (namedtuple "Item" ["name"

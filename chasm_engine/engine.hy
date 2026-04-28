@@ -203,10 +203,14 @@ The engine logic is expected to handle many players.
                     "chasm/motd.md"))))})
 
 (defn :async spawn-player [player-name #* args #** kwargs] ; -> response
-  "Start the game. Make sure there's a recent message. Return the whole visible state."
+  "Start the game. Make sure there's a recent message. Return the whole visible state.
+  New players spawn at (0,0), returning players resume at their saved location."
   (try
     (await (place.extend-map (Coords 0 0)))
-    (let [coords (random-coords)
+    (let [; Check if player already exists (returning player)
+          existing-char (get-character player-name)
+          ; Use existing coords for returning players, (0,0) for new players
+          coords (if existing-char existing-char.coords (Coords 0 0))
           player (await (character.spawn :name player-name :loaded kwargs :coords coords))]
       (if (not player)
           (error f"Failed to spawn player: {player-name}")

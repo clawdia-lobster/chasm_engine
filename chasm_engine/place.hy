@@ -202,8 +202,23 @@ Functions that manage place.
   in adjacent cells, accessible or not."
   (.join "\n" (await (nearby coords #** kwargs))))
   
+(defn :async gen-short-description [place]
+  "Generate a short description for a place from its details."
+  (let [response (await (place-description
+                          :world world
+                          :place-name place.name
+                          :place place
+                          :player "you"
+                          :nearby ""
+                          :length "very short"))]
+    (if response
+        (trim-prose response)
+        ; Fallback if LLM returns None
+        f"You are in {place.name}.")))
+
 (defn :async new [coords]
-  "Add a description etc, item, character to a place."
+  "Add a description etc, item, character to a place.
+  Generates and stores short description for faster lookups."
   ; TODO: consider pre-generating a long list of names, to ensure uniqueness.
   (let [near-places (.join ", " (await (nearby coords :list-inaccessible True :name True)))
         details (await (gen-json near-places))]
@@ -215,14 +230,26 @@ Functions that manage place.
                                (first)
                                (sstrip)
                                (capwords)))
+              ; Create place without short_description first
               place (Place :coords coords
                            :name name
                            :rooms (await (gen-rooms details))
                            :atmosphere (:atmosphere details None)
                            :appearance (:appearance details None)
-                           :terrain (:terrain details None))]
-          (log.info f"{place.name} @ {coords}")
-          (set-place place))
+                           :terrain (:terrain details None)
+                           :short_description None)
+              ; Generate short description
+              short-desc (await (gen-short-description place))
+              ; Update place with short description
+              final-place (Place :coords coords
+                                 :name name
+                                 :rooms place.rooms
+                                 :atmosphere place.atmosphere
+                                 :appearance place.appearance
+                                 :terrain place.terrain
+                                 :short_description short-desc)]
+          (log.info f"{final-place.name} @ {coords}")
+          (set-place final-place))
       (log.error f"generation failed @ {coords}\n{near-places}\n-> {details}"))))
 
 (defn :async accessible [coords * min-places]
@@ -270,16 +297,23 @@ Functions that manage place.
         place.rooms)))
 
 (defn :async describe [player [messages None] [length "very short"]]
-  "Return a description of the location."
+  "Return a description of the location.
+  Uses stored short_description for 'very short' requests when available."
   (let [coords player.coords
         place (get-place coords)
         near-str (.join "; " (await (nearby coords :list-inaccessible False :name True)))]
-    (if messages
+    (cond
+      ; Use stored short description if available and length is very short
+      (and (= length "very short") place.short_description)
+        f"**{place.name}**\n\n{place.short_description}"
+      ; Otherwise generate via LLM
+      messages
         (await (chat-gen-description near-str
                                      place
                                      player
                                      messages
                                      :length length))
+      :else
         (await (gen-description near-str (str coords))))))
 
 (defn name [coords]

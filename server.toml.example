@@ -4,6 +4,10 @@ world = "worlds/generic-world-name"
 ws_host = "0.0.0.0"
 ws_port = 8080
 
+# Background task intervals (seconds)
+# develop_interval: how often to process plot, quests, world author, character development
+develop_interval = 30
+
 # params passed to the model are defined in their own section below
 # context_length is the context window of the model.
 context_length = 30000
