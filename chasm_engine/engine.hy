@@ -658,11 +658,14 @@ The engine logic is expected to handle many players.
       ; Extract and apply world delta from narrative
       (try
         (let [delta (await (world_delta.extract-delta prose player))
-              result (await (world_delta.process-delta delta prose))]
-          (when (not (.get result "success"))
-            (log.warn f"Delta validation failed: {(.get result \"errors\")}"))
-          (when (> (.get result "applied") 0)
-            (log.info f"Applied {(.get result \"applied\")} world changes")))
+              result (await (world_delta.process-delta delta prose))
+              success (.get result "success")
+              applied (.get result "applied")
+              errors (.get result "errors")]
+          (when (not success)
+            (log.warn f"Delta validation failed: {errors}"))
+          (when (> applied 0)
+            (log.info f"Applied {applied} world changes")))
         (except [e Exception]
           (log.error f"Delta processing error: {e}")))
       prose)))
@@ -699,11 +702,14 @@ The engine logic is expected to handle many players.
         ; Extract and apply world delta from narrative
         (try
           (let [delta (await (world_delta.extract-delta full-text player))
-                result (await (world_delta.process-delta delta full-text))]
-            (when (not (.get result "success"))
-              (log.warn f"Delta validation failed: {(.get result \"errors\")}"))
-            (when (> (.get result "applied") 0)
-              (log.info f"Applied {(.get result \"applied\")} world changes")))
+                result (await (world_delta.process-delta delta full-text))
+                success (.get result "success")
+                applied (.get result "applied")
+                errors (.get result "errors")]
+            (when (not success)
+              (log.warn f"Delta validation failed: {errors}"))
+            (when (> applied 0)
+              (log.info f"Applied {applied} world changes")))
           (except [e Exception]
             (log.error f"Delta processing error: {e}")))
         (yield #(full-text True))))))

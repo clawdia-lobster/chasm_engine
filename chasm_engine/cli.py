@@ -64,8 +64,8 @@ def chasm():
 
 
 def _serve(args):
-    from chasm_engine import server
-    sys.exit(asyncio.run(server.serve()) or 0)
+    from chasm_engine import ws_server
+    ws_server.main()
 
 def _list_accounts(args):
     from chasm_engine import state

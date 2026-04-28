@@ -91,7 +91,8 @@ Design: docs/WORLD_AUTHOR.md (to be created)
                                  :provider "narrator"))
         quest-data (extract-json-unwrap response)]
     (when quest-data
-      (log.info f"Generated quest: {(or (.get quest-data \"name\") \"unknown\")}")
+      (let [quest-name (or (.get quest-data "name") "unknown")]
+        (log.info f"Generated quest: {quest-name}"))
       quest-data)))
 
 
@@ -109,7 +110,8 @@ Design: docs/WORLD_AUTHOR.md (to be created)
                                  :provider "narrator"))
         npc-data (extract-json-unwrap response)]
     (when npc-data
-      (log.info f"Generated NPC: {(or (.get npc-data \"name\") \"unknown\")}")
+      (let [npc-name (or (.get npc-data "name") "unknown")]
+        (log.info f"Generated NPC: {npc-name}"))
       npc-data)))
 
 
