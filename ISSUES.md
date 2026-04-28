@@ -24,8 +24,8 @@
    - **Status:** ✅ Fixed — Always create account entry on spawn.
 
 7. **No characters visible** — Including player's own character not appearing in database.
-   - **Root cause:** `is-valid-key` rejects names that don't match `^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$`. Also, world path may be wrong.
-   - **Fix:** Check world path config, relax validation or add better error messages.
+   - **Root cause:** `is-valid-key` was rejecting single-character names. Also, world path may be wrong.
+   - **Status:** ✅ Fixed — Single-character names now allowed. Added better logging for validation failures.
 
 8. **JWT key too short** — Warning: "The HMAC key is 23 bytes long, which is below the minimum recommended length of 32 bytes for SHA256."
    - **Root cause:** Default `jwt_secret = "change-me-in-production"` is 23 bytes.
