@@ -7,6 +7,7 @@ Functions that manage place.
 
 (import chasm_engine.lib [extract-json-unwrap])
 (import time)
+(import asyncio)
 
 (import tenacity [retry stop-after-attempt wait-random-exponential retry-if-exception-type])
 
@@ -286,15 +287,23 @@ Functions that manage place.
         a.coords))
 
 (defn :async [(retry :stop (stop-after-attempt 4))] extend-map [coords]
-  "Extend the map so neighbouring places exist."
+  "Extend the map so neighbouring places exist. Parallelized for speed."
   (let [cx (:x coords)
         cy (:y coords)
-        places (lfor dx [-1 0 1]
-                     dy [-1 0 1]
-                     :setv _coords (Coords (+ cx dx) (+ cy dy))
-                     (or (get-place _coords)
-                         (await (new _coords))
-                         (await (new _coords))))]
+        ;; All 9 coords in 3x3 grid
+        coords-list (lfor dx [-1 0 1]
+                          dy [-1 0 1]
+                          (Coords (+ cx dx) (+ cy dy)))
+        ;; Only generate places that don't exist yet
+        missing (lfor c coords-list
+                      :if (not (get-place c))
+                      c)
+        ;; Create tasks for all missing places
+        tasks (lfor c missing (new c))]
+    ;; Run all place generations in parallel
+    (when tasks
+      (await (asyncio.gather #* tasks)))
+    ;; Verify center place exists
     (unless (get-place coords)
       (raise (ChasmPlaceError f"place/extend-map: unable to generate at {coords}")))))
     
