@@ -43,3 +43,11 @@
 12. **Client hangs on input** — asyncio.run() cannot be called from running event loop.
     - **Root cause:** PTK callback is sync but called from async context.
     - **Status:** ✅ Fixed — Using queue pattern with background async processor.
+
+13. **Session token not stored** — Client wasn't storing session_token from spawn.
+    - **Root cause:** spawn response includes session_token but client didn't save it.
+    - **Status:** ✅ Fixed — Client now stores token in _state and uses for subsequent requests.
+
+14. **parse-stream-async wrong signature** — Function took wrong arguments.
+    - **Root cause:** Function signature had player-name as first arg, but was called with input.
+    - **Status:** ✅ Fixed — Function now takes input as first arg, uses stored session token.
