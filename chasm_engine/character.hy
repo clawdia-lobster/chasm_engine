@@ -36,7 +36,8 @@ Functions that deal with characters.
 
 
 (defn is-valid-key [s]
-  (re.match "^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$" s))
+  "Check if a key is valid for storage. Must be alphanumeric with optional dots, underscores, hyphens in the middle."
+  (re.match "^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$" s))
 
 (defn :async spawn [[name None] [coords (Coords 0 0)] [loaded {}] [max-retries 5]] ; -> Character or None
   "Spawn a character from card, db, or just generated. Uses iteration to avoid infinite recursion."
@@ -68,7 +69,9 @@ Functions that deal with characters.
                 (log.info f"set character {name} -> {character.name}")
                 (set-character character)
                 (return character))
-              (log.warn f"invalid spawn for character {character.name} at {coords}, retry {retries}..."))))
+              (do
+                (let [key (character-key character.name)]
+                  (log.warn f"invalid spawn for character {character.name} (key={key}) at {coords}, retry {retries}..."))))))
       (except [e [Exception]]
         (log.error f"spawn failed for {name} at {coords}: {e}"))))
   (log.error f"spawn failed after {max-retries} attempts for {name}")
