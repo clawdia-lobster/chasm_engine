@@ -207,8 +207,10 @@ Implements the Chasm WebSocket Protocol v1.0.
               (when passphrase
                 (update-account player-name 
                                :passphrase (.hexdigest (sha256 (.encode passphrase)))))
-              (let [token (create-session player-name websocket)
-                    result (await (engine.spawn-player player-name #** character-card))]
+              (let [token (create-session player-name websocket)]
+                ;; Send immediate notification so client knows something is happening
+                (await (.send websocket (json.dumps (make-notification "status" {"message" "Spawning character and initializing world..."}))))
+                (let [result (await (engine.spawn-player player-name #** character-card))]
                 (log.info "handle-spawn: new player got result")
                 (cond
                   (is result None)
