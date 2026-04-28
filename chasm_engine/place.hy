@@ -6,6 +6,7 @@ Functions that manage place.
 (require hyrule [unless])
 
 (import chasm_engine.lib [extract-json-unwrap])
+(import time)
 
 (import tenacity [retry stop-after-attempt wait-random-exponential retry-if-exception-type])
 
@@ -220,8 +221,12 @@ Functions that manage place.
   "Add a description etc, item, character to a place.
   Generates and stores short description for faster lookups."
   ; TODO: consider pre-generating a long list of names, to ensure uniqueness.
-  (let [near-places (.join ", " (await (nearby coords :list-inaccessible True :name True)))
-        details (await (gen-json near-places))]
+  (let [start-time (time.time)
+        near-places (.join ", " (await (nearby coords :list-inaccessible True :name True)))
+        _ (log.debug f"place/new: nearby lookup took {(- (time.time) start-time):.2f}s")
+        gen-start (time.time)
+        details (await (gen-json near-places))
+        _ (log.debug f"place/new: gen-json took {(- (time.time) gen-start):.2f}s")]
     (if (and details (:name details None))
         (let [m (->> (:name details)
                      (re.search r"([\w ]+)"))

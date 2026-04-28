@@ -39,7 +39,7 @@ Implements the Chasm WebSocket Protocol v1.0.
   "Load config if not already loaded."
   (global _config-loaded JWT-SECRET)
   (unless _config-loaded
-    (setv JWT-SECRET (or (config "jwt_secret") "change-me-in-production"))
+    (setv JWT-SECRET (or (config "jwt_secret") "change-me-in-production-use-32-bytes-min"))
     (setv _config-loaded True)))
 
 
@@ -201,6 +201,8 @@ Implements the Chasm WebSocket Protocol v1.0.
           ;; New player
           True
             (do
+              ;; Create account entry (always)
+              (set-account {"name" player-name} player-name)
               ;; Store passphrase if provided
               (when passphrase
                 (update-account player-name 
