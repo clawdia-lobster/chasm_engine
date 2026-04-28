@@ -236,9 +236,12 @@ Functions that manage place.
                                (sstrip)
                                (capwords)))
               ; Create place without short_description first
+              rooms-start (time.time)
+              rooms (await (gen-rooms details))
+              _ (log.debug f"place/new: gen-rooms took {(- (time.time) rooms-start):.2f}s")
               place (Place :coords coords
                            :name name
-                           :rooms (await (gen-rooms details))
+                           :rooms rooms
                            :atmosphere (:atmosphere details None)
                            :appearance (:appearance details None)
                            :terrain (:terrain details None)
@@ -246,7 +249,9 @@ Functions that manage place.
                            :state "normal"
                            :properties {})
               ; Generate short description
+              desc-start (time.time)
               short-desc (await (gen-short-description place))
+              _ (log.debug f"place/new: gen-short-description took {(- (time.time) desc-start):.2f}s")
               ; Update place with short description
               final-place (Place :coords coords
                                  :name name
@@ -257,7 +262,7 @@ Functions that manage place.
                                  :short_description short-desc
                                  :state "normal"
                                  :properties {})]
-          (log.info f"{final-place.name} @ {coords}")
+          (log.info f"{final-place.name} @ {coords} (total {(- (time.time) start-time):.2f}s)")
           (set-place final-place))
       (log.error f"generation failed @ {coords}\n{near-places}\n-> {details}"))))
 
