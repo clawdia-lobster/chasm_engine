@@ -33,3 +33,13 @@
 
 9. **World path hardcoded in example config** — `server.toml` has `/home/node/...` path that only works on node machine.
    - **Fix:** Use relative path or document requirement to edit config.
+
+10. **Passphrase not passed to spawn** — Client reads passphrase from config but never sends it.
+    - **Status:** ✅ Fixed — Now passes passphrase from config to spawn function.
+
+11. **Spawn increments turn count** — First spawn shouldn't count as a turn.
+    - **Status:** ✅ Fixed — Added `increment-turn` parameter to payload, spawn passes False.
+
+12. **Client hangs on input** — asyncio.run() cannot be called from running event loop.
+    - **Root cause:** PTK callback is sync but called from async context.
+    - **Status:** ✅ Fixed — Using queue pattern with background async processor.
