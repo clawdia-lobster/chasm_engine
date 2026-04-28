@@ -73,9 +73,9 @@ that constrains the narrator's storytelling.
 
 (defn validate-update [change errors]
   "Validate a single update operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")
-        patch (.get change "patch" {})]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)
+        patch (:patch change {})]
     ;; Check entity type
     (unless (in entity-type VALID-ENTITY-TYPES)
       (.append errors f"Invalid entity type: {entity-type}"))
@@ -89,17 +89,11 @@ that constrains the narrator's storytelling.
         (.append errors f"Invalid attributes for {entity-type}: {invalid-keys}")))))
 
 
-(defn get-delta-key [dict key-name]
-  "Get a value from a delta dict, handling both string and keyword keys."
-  (or (.get dict key-name)
-      (.get dict (hy.models.Keyword key-name))))
-
-
 (defn validate-creation [change errors]
   "Validate a single creation operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")
-        attrs (.get change "attrs" {})]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)
+        attrs (:attrs change {})]
     ;; Check entity type
     (unless (in entity-type VALID-ENTITY-TYPES)
       (.append errors f"Invalid entity type: {entity-type}"))
@@ -118,8 +112,8 @@ that constrains the narrator's storytelling.
 
 (defn validate-deletion [change errors]
   "Validate a single deletion operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)]
     ;; Check entity type
     (unless (in entity-type VALID-ENTITY-TYPES)
       (.append errors f"Invalid entity type: {entity-type}"))
@@ -132,13 +126,13 @@ that constrains the narrator's storytelling.
   "Validate a complete delta. Returns {\"valid\" bool \"errors\" [...]}."
   (let [errors []]
     ;; Validate updates
-    (for [change (.get delta "updates" [])]
+    (for [change (:updates delta [])]
       (validate-update change errors))
     ;; Validate creations
-    (for [change (.get delta "creations" [])]
+    (for [change (:creations delta [])]
       (validate-creation change errors))
     ;; Validate deletions
-    (for [change (.get delta "deletions" [])]
+    (for [change (:deletions delta [])]
       (validate-deletion change errors))
     ;; Relations validation (both entities must exist after creations)
     ;; For now, skip relations validation - implement when needed
@@ -177,9 +171,9 @@ that constrains the narrator's storytelling.
 
 (defn apply-update [change]
   "Apply a single update operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")
-        patch (.get change "patch" {})]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)
+        patch (:patch change {})]
     (match entity-type
       "place" (apply-place-update entity-id patch)
       "item" (apply-item-update entity-id patch)
@@ -189,9 +183,9 @@ that constrains the narrator's storytelling.
 
 (defn :async apply-creation [change]
   "Apply a single creation operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")
-        attrs (.get change "attrs" {})]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)
+        attrs (:attrs change {})]
     (match entity-type
       "place" (let [coords (or (parse-coords entity-id) (:coords attrs))]
                 (when coords
@@ -211,8 +205,8 @@ that constrains the narrator's storytelling.
 
 (defn apply-deletion [change]
   "Apply a single deletion operation."
-  (let [entity-type (.get change "entity-type")
-        entity-id (.get change "entity-id")]
+  (let [entity-type (:entity-type change)
+        entity-id (:entity-id change)]
     (match entity-type
       "place" (let [coords (parse-coords entity-id)]
                 (when coords
@@ -237,7 +231,7 @@ that constrains the narrator's storytelling.
         failed 0
         errors []]
     ;; Apply updates
-    (for [change (.get delta "updates" [])]
+    (for [change (:updates delta [])]
       (try
         (apply-update change)
         (setv applied (inc applied))
@@ -245,7 +239,7 @@ that constrains the narrator's storytelling.
           (setv failed (inc failed))
           (.append errors f"Update failed: {e}"))))
     ;; Apply creations
-    (for [change (.get delta "creations" [])]
+    (for [change (:creations delta [])]
       (try
         (await (apply-creation change))
         (setv applied (inc applied))
@@ -253,7 +247,7 @@ that constrains the narrator's storytelling.
           (setv failed (inc failed))
           (.append errors f"Creation failed: {e}"))))
     ;; Apply deletions
-    (for [change (.get delta "deletions" [])]
+    (for [change (:deletions delta [])]
       (try
         (apply-deletion change)
         (setv applied (inc applied))

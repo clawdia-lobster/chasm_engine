@@ -38,20 +38,20 @@
 (defn test-validate-empty-delta []
   "Test that empty delta is valid."
   (let [result (chasm_engine.world_delta.validate-delta {"updates" [] "creations" [] "deletions" [] "relations" []})]
-    (assert (.get result "valid"))))
+    (assert (:valid result))))
 
 
 (defn test-validate-invalid-entity-type []
   "Test that invalid entity type is rejected."
-  (let [result (chasm_engine.world_delta.validate-delta {"updates" [{"entity-type" "invalid" "entity-id" "test" "patch" {}}]})]
-    (assert (not (.get result "valid")))
-    (assert (> (len (.get result "errors")) 0))))
+  (let [result (chasm_engine.world_delta.validate-delta {"updates" [{"entity_type" "invalid" "entity_id" "test" "patch" {}}]})]
+    (assert (not (:valid result)))
+    (assert (> (len (:errors result)) 0))))
 
 
 (defn test-validate-nonexistent-entity []
   "Test that update to nonexistent entity is rejected."
-  (let [result (chasm_engine.world_delta.validate-delta {"updates" [{"entity-type" "item" "entity-id" "nonexistent-item" "patch" {"state" "broken"}}]})]
-    (assert (not (.get result "valid")))))
+  (let [result (chasm_engine.world_delta.validate-delta {"updates" [{"entity_type" "item" "entity_id" "nonexistent-item" "patch" {"state" "broken"}}]})]
+    (assert (not (:valid result)))))
 
 
 (defn test-valid-entity-types []
