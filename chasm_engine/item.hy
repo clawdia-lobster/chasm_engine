@@ -44,7 +44,9 @@ Functions that deal with items.
           (.pop details "item" None)
           (Item #** (| {"type" "object"
                         "appearance" "Looks like you'd expect."
-                        "usage" "Usage unknown."}
+                        "usage" "Usage unknown."
+                        "state" "intact"
+                        "properties" {}}
                        details)
                 :name (re.sub r"^[Th]he " "" name)
                 :coords place.coords

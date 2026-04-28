@@ -237,7 +237,9 @@ Functions that manage place.
                            :atmosphere (:atmosphere details None)
                            :appearance (:appearance details None)
                            :terrain (:terrain details None)
-                           :short_description None)
+                           :short_description None
+                           :state "normal"
+                           :properties {})
               ; Generate short description
               short-desc (await (gen-short-description place))
               ; Update place with short description
@@ -247,7 +249,9 @@ Functions that manage place.
                                  :atmosphere place.atmosphere
                                  :appearance place.appearance
                                  :terrain place.terrain
-                                 :short_description short-desc)]
+                                 :short_description short-desc
+                                 :state "normal"
+                                 :properties {})]
           (log.info f"{final-place.name} @ {coords}")
           (set-place final-place))
       (log.error f"generation failed @ {coords}\n{near-places}\n-> {details}"))))

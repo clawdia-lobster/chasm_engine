@@ -137,12 +137,13 @@ But you're probably using autocommit anyway."
   (log.debug f"Updating place {loc.name}, {kwargs}.")
   (set-place (Place #** (| (._asdict loc) kwargs))))
 
-(defn delete-place [loc]
+(defn delete-place [coords]
   "Completely remove a place."
   (let [key (str coords)
         p (get-place coords)]
-    (log.debug f"Deleting place {p.name}.")
-    (.pop places key)))
+    (when p
+      (log.debug f"Deleting place {p.name}.")
+      (.pop places key))))
   
 (defn len-places []
   (len places))

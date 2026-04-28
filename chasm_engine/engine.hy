@@ -14,7 +14,7 @@ The engine logic is expected to handle many players.
 (import chasm-engine [log])
 
 (import chasm-engine.lib *)
-(import chasm-engine [place item character plot quest world_author memory_facts intent])
+(import chasm-engine [place item character plot quest world_author memory_facts intent world_delta])
 (import chasm-engine.types [Coords])
 (import chasm-engine.constants [character-density item-density compass-directions])
 (import chasm-engine.state [world world-name
@@ -635,7 +635,8 @@ The engine logic is expected to handle many players.
     (trim-prose)))
 
 (defn :async narrate [messages player]
-  "Narrate the story, in the fictional universe."
+  "Narrate the story, in the fictional universe.
+  Also extracts and applies world state changes from the narrative."
   (let [here (. (get-place player.coords) name) ; a place
         ; Include what the narrator knows about the player for context-aware responses
         narrator-knowledge (memory-facts.knowledge-about "narrator" player.name :n 5)
@@ -648,16 +649,28 @@ The engine logic is expected to handle many players.
                            :context context
                            :here here)]
     (.add develop-queue player.name) ; add the player to the development queue
-    (-> (-> [(system narrative-prompt) #* messages]
-            (truncate))
-        (respond :provider "narrator")
-        (await)
-        (trim-prose)
-        (or "")))) ; ensure it returns a string, never None.
+    (let [prose (-> (-> [(system narrative-prompt) #* messages]
+                        (truncate))
+                    (respond :provider "narrator")
+                    (await)
+                    (trim-prose)
+                    (or ""))]
+      ; Extract and apply world delta from narrative
+      (try
+        (let [delta (await (world_delta.extract-delta prose player))
+              result (await (world_delta.process-delta delta prose))]
+          (when (not (.get result "success"))
+            (log.warn f"Delta validation failed: {(.get result \"errors\")}"))
+          (when (> (.get result "applied") 0)
+            (log.info f"Applied {(.get result \"applied\")} world changes")))
+        (except [e Exception]
+          (log.error f"Delta processing error: {e}")))
+      prose)))
 
 (defn :async narrate-stream [messages player]
   "Stream narrative chunks as they arrive.
-  Yields (chunk, done) tuples where done=True on final chunk."
+  Yields (chunk, done) tuples where done=True on final chunk.
+  Also extracts and applies world state changes from the narrative."
   (let [here (. (get-place player.coords) name)
         ; Include what the narrator knows about the player for context-aware responses
         narrator-knowledge (memory-facts.knowledge-about "narrator" player.name :n 5)
@@ -683,6 +696,16 @@ The engine logic is expected to handle many players.
               (yield #(delta.content False))))))
       ;; Final chunk with trimmed result
       (let [full-text (trim-prose (.join "" content))]
+        ; Extract and apply world delta from narrative
+        (try
+          (let [delta (await (world_delta.extract-delta full-text player))
+                result (await (world_delta.process-delta delta full-text))]
+            (when (not (.get result "success"))
+              (log.warn f"Delta validation failed: {(.get result \"errors\")}"))
+            (when (> (.get result "applied") 0)
+              (log.info f"Applied {(.get result \"applied\")} world changes")))
+          (except [e Exception]
+            (log.error f"Delta processing error: {e}")))
         (yield #(full-text True))))))
 
 (defn consume-item [messages player item]

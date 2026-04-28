@@ -34,7 +34,9 @@ They must be integer."
                                  "appearance"
                                  "atmosphere"
                                  "terrain"
-                                 "short_description"]))
+                                 "short_description"
+                                 "state"        ; "normal", "ruins", "flooded", etc.
+                                 "properties"]))  ; {"burned": true, "looted": false, ...}
 
 ; consider adding provenance
 (setv Item (namedtuple "Item" ["name"
@@ -42,7 +44,9 @@ They must be integer."
                                "appearance"
                                "usage"
                                "owner" ; None if no character has in their inventory
-                               "coords"])) ; None if it's being carried
+                               "coords" ; None if it's being carried
+                               "state"        ; "intact", "broken", "consumed", etc.
+                               "properties"]))  ; {"charges": 3, "lit": true, ...}
 
 (setv mutable-character-attributes ["appearance"
                                     "health"

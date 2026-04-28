@@ -126,7 +126,9 @@ Design: docs/WORLD_AUTHOR.md (to be created)
                      :appearance (:appearance region-data "")
                      :atmosphere (:atmosphere region-data "")
                      :terrain (:terrain region-data "")
-                     :short_description None)]
+                     :short_description None
+                     :state "normal"
+                     :properties {})]
     (set-place place)
     (log.info f"Installed region: {(:name region-data)} at {coords}")
     place))
