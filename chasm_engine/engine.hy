@@ -9,6 +9,7 @@ The engine logic is expected to handle many players.
 (require hyjinx.macros [prepend append])
 
 (import time [time])
+(import asyncio)
 
 (import chasm-engine [log])
 
@@ -36,10 +37,26 @@ The engine logic is expected to handle many players.
 (require chasm-engine.instructions [deftemplate def-fill-template])
 
 
-;; * Turn-level context cache
+;; * Turn-level context cache with per-player locking
 ;; -----------------------------------------------------------------------------
+;; The cache stores turn-level context (location, player state, memories) to avoid
+;; recomputation. Per-player locks prevent race conditions when the same player
+;; sends concurrent requests (e.g., rapid retries, multiple tabs).
 
 (setv _context-cache {})
+(setv _player-locks {})
+
+(defn get-player-lock [player-name]
+  "Get or create an asyncio.Lock for a specific player."
+  (global _player-locks)
+  (unless (in player-name _player-locks)
+    (assoc _player-locks player-name (asyncio.Lock)))
+  (.get _player-locks player-name))
+
+(defn cleanup-player-lock [player-name]
+  "Remove a player's lock (call on disconnect)."
+  (global _player-locks)
+  (.pop _player-locks player-name None))
 
 (defn invalidate-context-cache [player-name]
   "Invalidate cached context for a player."
@@ -272,92 +289,100 @@ The engine logic is expected to handle many players.
             (character.move c p.coords)))))))
 
 (defn :async parse [player-name line #* args #** kwargs] ; -> response
-  "Process the player's input and return the whole visible state."
+  "Process the player's input and return the whole visible state.
+  Uses per-player lock to prevent race conditions from concurrent requests."
   (log.info f"{player-name}: {line}")
-  ;; Invalidate context cache at start of each turn
-  (invalidate-context-cache player-name)
-  (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
-        player (update-character _player :npc False)
-        narrative (get-narrative player-name)
-        messages (truncate (standard-roles narrative)
-                           :spare-length (+ (token-length world) (config "max_tokens"))) 
-        user-msg (user line)
-        result (try
-                 (cond
-                   ;; Fast path: explicit commands (starting with /)
-                   (is-quit line) (do (update-character player :npc True) (msg "QUIT" "QUIT"))
-                   (.startswith line "/help") (info (help-str))
-                   (.startswith line "/hint") (info (await (hint messages player line)))
-                   (.startswith line "/hist") (msg "history" "The story so far...")
-                   (.startswith line "/map") (info (await (print-map player.coords)))
-                   (.startswith line "/exits") (msg (await (print-map player.coords)))
-                   (.startswith line "/online") (info (online :long True))
-                   (.startswith line "/quests") (info (quest-status player.name))
-                   (.startswith line "/take") (info (item.fuzzy-claim (parse-take line) player))
-                   (.startswith line "/drop") (info (item.fuzzy-drop (parse-drop line) player))
-                   (.startswith line "/give") (info (item.fuzzy-give player #* (parse-give line)))
-                   (.startswith line "/l") (assistant (await (place.describe player :messages messages :length "short")))
-                   (.startswith line "/go") (assistant (await (move (append user-msg messages) player)))
-                   ;; Intent-based path for natural language
-                   (is-command line) (let [u-msg (user (get line (slice 1 None)))]
-                                       (assistant (await (narrate (append u-msg messages) player))))
-                   ;; Natural language: use intent classification
-                   line (await (parse-with-intent line player messages)))
-                 (except [err [ChatError]]
-                   (log.error "Empty reply" :exception err)
-                   (info f"There was no reply."))
-                 (except [err [Exception]]
-                   (log.error "Engine error" :exception err)
-                   (error f"Engine error: {(repr err)}")))]
-    ; info, error do not extend narrative.
-    (when (and result (= (:role result) "assistant"))
-      (.extend narrative [user-msg result])
-      (set-narrative (cut narrative -100 None) player-name) ; keep just last 100 messages
-      (await (move-characters narrative)))
-    (log.debug f"-> {result}")
-    ; always return the most recent state
-    (await (payload narrative result player-name))))
+  ;; Acquire per-player lock to prevent concurrent request race conditions
+  (let [lock (get-player-lock player-name)]
+    (async-with [lock]
+      ;; Invalidate context cache at start of each turn
+      (invalidate-context-cache player-name)
+      (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
+            player (update-character _player :npc False)
+            narrative (get-narrative player-name)
+            messages (truncate (standard-roles narrative)
+                               :spare-length (+ (token-length world) (config "max_tokens"))) 
+            user-msg (user line)
+            result (try
+                     (cond
+                       ;; Fast path: explicit commands (starting with /)
+                       (is-quit line) (do (update-character player :npc True) (msg "QUIT" "QUIT"))
+                       (.startswith line "/help") (info (help-str))
+                       (.startswith line "/hint") (info (await (hint messages player line)))
+                       (.startswith line "/hist") (msg "history" "The story so far...")
+                       (.startswith line "/map") (info (await (print-map player.coords)))
+                       (.startswith line "/exits") (msg (await (print-map player.coords)))
+                       (.startswith line "/online") (info (online :long True))
+                       (.startswith line "/quests") (info (quest-status player.name))
+                       (.startswith line "/take") (info (item.fuzzy-claim (parse-take line) player))
+                       (.startswith line "/drop") (info (item.fuzzy-drop (parse-drop line) player))
+                       (.startswith line "/give") (info (item.fuzzy-give player #* (parse-give line)))
+                       (.startswith line "/l") (assistant (await (place.describe player :messages messages :length "short")))
+                       (.startswith line "/go") (assistant (await (move (append user-msg messages) player)))
+                       ;; Intent-based path for natural language
+                       (is-command line) (let [u-msg (user (get line (slice 1 None)))]
+                                           (assistant (await (narrate (append u-msg messages) player))))
+                       ;; Natural language: use intent classification
+                       line (await (parse-with-intent line player messages)))
+                     (except [err [ChatError]]
+                       (log.error "Empty reply" :exception err)
+                       (info f"There was no reply."))
+                     (except [err [Exception]]
+                       (log.error "Engine error" :exception err)
+                       (error f"Engine error: {(repr err)}")))]
+        ; info, error do not extend narrative.
+        (when (and result (= (:role result) "assistant"))
+          (.extend narrative [user-msg result])
+          (set-narrative (cut narrative -100 None) player-name) ; keep just last 100 messages
+          (await (move-characters narrative)))
+        (log.debug f"-> {result}")
+        ; always return the most recent state
+        (await (payload narrative result player-name))))))
 
 (defn :async parse-stream [player-name line websocket send-notification #* args #** kwargs]
   "Process player input with streaming narrative. Yields chunks via callback.
-  Returns final payload when complete."
+  Returns final payload when complete.
+  Uses per-player lock to prevent race conditions from concurrent requests."
   (log.info f"{player-name}: {line} (streaming)")
-  (invalidate-context-cache player-name)
-  (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
-        player (update-character _player :npc False)
-        narrative (get-narrative player-name)
-        messages (truncate (standard-roles narrative)
-                           :spare-length (+ (token-length world) (config "max_tokens")))
-        user-msg (user line)
-        ; Check if this is a narrative command (streaming applicable)
-        is-narrative (and line
-                         (not (is-quit line))
-                         (not (parse-take line))
-                         (not (parse-drop line))
-                         (not (parse-give line))
-                         (not (.startswith line "/"))
-                         (not (is-look line))
-                         (not (parse-go line)))]
-    (if is-narrative
-      ; Streaming path for narrative commands
-      (do
-        (let [full-text []]
-          (async-for [chunk done (narrate-stream (append user-msg messages) player)]
-            (if done
-              ; Final chunk - send complete notification
-              (await (send-notification "stream_complete" {"text" chunk}))
-              ; Intermediate chunk
-              (do
-                (.append full-text chunk)
-                (await (send-notification "stream_chunk" {"text" chunk})))))
-          ; Update narrative with full text
-          (let [result (assistant (.join "" full-text))]
-            (.extend narrative [user-msg result])
-            (set-narrative (cut narrative -100 None) player-name)
-            (await (move-characters narrative))
-            (await (payload narrative result player-name)))))
-      ; Non-streaming path for other commands
-      (await (parse player-name line #* args #** kwargs)))))
+  ;; Acquire per-player lock to prevent concurrent request race conditions
+  (let [lock (get-player-lock player-name)]
+    (async-with [lock]
+      (invalidate-context-cache player-name)
+      (let [_player (or (get-character player-name) (await (character.spawn :name player-name :loaded kwargs)))
+            player (update-character _player :npc False)
+            narrative (get-narrative player-name)
+            messages (truncate (standard-roles narrative)
+                               :spare-length (+ (token-length world) (config "max_tokens")))
+            user-msg (user line)
+            ; Check if this is a narrative command (streaming applicable)
+            is-narrative (and line
+                             (not (is-quit line))
+                             (not (parse-take line))
+                             (not (parse-drop line))
+                             (not (parse-give line))
+                             (not (.startswith line "/"))
+                             (not (is-look line))
+                             (not (parse-go line)))]
+        (if is-narrative
+          ; Streaming path for narrative commands
+          (do
+            (let [full-text []]
+              (async-for [chunk done (narrate-stream (append user-msg messages) player)]
+                (if done
+                  ; Final chunk - send complete notification
+                  (await (send-notification "stream_complete" {"text" chunk}))
+                  ; Intermediate chunk
+                  (do
+                    (.append full-text chunk)
+                    (await (send-notification "stream_chunk" {"text" chunk})))))
+              ; Update narrative with full text
+              (let [result (assistant (.join "" full-text))]
+                (.extend narrative [user-msg result])
+                (set-narrative (cut narrative -100 None) player-name)
+                (await (move-characters narrative))
+                (await (payload narrative result player-name)))))
+          ; Non-streaming path for other commands
+          (await (parse player-name line #* args #** kwargs)))))))
       
 ;; World functions (background tasks)
 ;; -----------------------------------------------------------------------------

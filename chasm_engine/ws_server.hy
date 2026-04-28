@@ -399,6 +399,35 @@ Implements the Chasm WebSocket Protocol v1.0.
         (delete-session token)))))
 
 
+;; * Background Tasks
+;; -----------------------------------------------------------------------------
+
+(defn :async develop-loop []
+  "Background task to process the development queue.
+  Runs periodically, processing plot, quests, world, characters, NPCs."
+  (import chasm_engine.status [set-background-task-running set-background-task-stopped])
+  (let [interval (or (config "develop_interval") 30)]
+    (set-background-task-running "develop")
+    (log.info f"Starting develop loop with {interval}s interval")
+    (try
+      (while True
+        (await (asyncio.sleep interval))
+        (when engine.develop-queue
+          (log.info f"Processing develop queue: {engine.develop-queue}")
+          (try
+            (await (engine.develop))
+            (except [e Exception]
+              (log.error f"Develop loop error: {e}")))))
+      (except [asyncio.CancelledError]
+        (log.info "Develop loop cancelled"))
+      (finally
+        (set-background-task-stopped "develop")))))
+
+(defn :async start-background-tasks []
+  "Start all background tasks."
+  (asyncio.create-task (develop-loop)))
+
+
 ;; * Server
 ;; -----------------------------------------------------------------------------
 
@@ -408,6 +437,8 @@ Implements the Chasm WebSocket Protocol v1.0.
   (import websockets.server [serve])
   (print f"Starting WebSocket server at ws://{host}:{port}/ws")
   (log.info f"Starting WebSocket server at ws://{host}:{port}/ws")
+  ; Start background tasks
+  (await (start-background-tasks))
   (let [server (await (serve handle-websocket host port))]
     ; Keep server running forever
     (await (.wait_closed server))))

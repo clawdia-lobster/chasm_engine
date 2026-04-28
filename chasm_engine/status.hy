@@ -57,6 +57,18 @@ Server status tracking and reporting.
   "Update last activity timestamp."
   (setv server-status.last_activity (time)))
 
+(defn set-background-task-running [task-name]
+  "Mark a background task as running."
+  (when (in task-name (.get server-status "background_tasks" {}))
+    (assoc (.get server-status "background_tasks") task-name True)
+    (log.info f"Background task started: {task-name}")))
+
+(defn set-background-task-stopped [task-name]
+  "Mark a background task as stopped."
+  (when (in task-name (.get server-status "background_tasks" {}))
+    (assoc (.get server-status "background_tasks") task-name False)
+    (log.info f"Background task stopped: {task-name}")))
+
 (defn get-status []
   "Return current server status dict."
   server-status)
